@@ -1,0 +1,2019 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.CarMapper">
+	
+	<!-- 리스트 정렬 -->
+	<sql id="order"> 
+	<if test="column == null or column == ''"> ORDER BY seq DESC </if>
+	<if test="column">ORDER BY ${column} ${order} </if>	
+	</sql>
+	
+	<!-- 페이징 -->
+	<sql id="paging"> LIMIT #{start_num}, #{row_num} </sql>
+	
+	<!-- 검색용 사업단 시퀀스 가져오기 -->
+	<select id="select_organize_seq" resultType="HashMap">
+		SELECT
+			og_seq
+		FROM organization WHERE 1=1
+			AND og_group = 1
+			AND og_name LIKE '%${org_name}%'
+	</select>
+	
+	<!-- 운행일지 리스트 가져오기 -->
+	<select id="select_drive_list" resultType="HashMap">
+		SELECT
+	 		a.rc_seq AS seq, a.rc_date, a.rc_before, a.rc_after,
+	 		d.og_name AS group_name, e.og_name AS team_name,
+	 		b.ve_number, a.rc_amount, a.rc_refuel, a.rc_trouble,
+	 		a.rc_park, a.rc_pass
+	 	FROM race a 
+	 	LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq 
+	 	LEFT JOIN personnel c ON a.per_seq = c.per_seq
+	 	LEFT JOIN organization d ON b.og_seq = d.og_seq
+	 	LEFT JOIN organization e ON b.ve_check = e.og_seq
+	 	where 1=1	 	
+	 		<if test="start_date != null and start_date != ''"> AND a.rc_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+	 		<if test="end_date != null and end_date != ''"> AND a.rc_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="og_name != null and og_name != ''"> AND d.og_seq = #{og_name} </if>
+			<if test="ve_number != null and ve_number != ''"> AND b.ve_number LIKE '%${ve_number}%' </if>
+			<if test="rc_handle != null and rc_handle != ''">
+				<if test="rc_handle == 1">  AND a.rc_handle = 1 </if>
+				<if test="rc_handle == 2">  AND a.rc_handle IN (2, 3) </if>
+			</if>
+			<if test="auth == 1"> AND b.og_seq = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 운행일지 리스트 개수 가져오기 -->
+	<select id="select_drive_cnt" resultType="int">
+		SELECT
+	 		COUNT(a.rc_seq)
+	 	FROM race a 
+	 	LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq 
+	 	LEFT JOIN personnel c ON a.per_seq = c.per_seq
+	 	LEFT JOIN organization d ON b.og_seq = d.og_seq
+	 	LEFT JOIN organization e ON b.ve_check = e.og_seq
+	 	where 1=1	
+	 		<if test="start_date != null and start_date != ''"> AND a.rc_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+	 		<if test="end_date != null and end_date != ''"> AND a.rc_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="og_name != null and og_name != ''"> AND d.og_seq = #{og_name} </if>
+			<if test="ve_number != null and ve_number != ''"> AND b.ve_number LIKE '%${ve_number}%' </if>
+			<if test="rc_handle != null and rc_handle != ''">
+				<if test="rc_handle == 1">  AND a.rc_handle = 1 </if>
+				<if test="rc_handle == 2">  AND a.rc_handle IN (2, 3) </if>
+			</if>
+			<if test="auth == 1"> AND b.og_seq = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+	</select>	
+	
+	<!-- 운행일지 추가/수정 -->
+	<insert id="insert_drive">
+		INSERT INTO race
+		(
+			rc_seq
+			<if test="ve_seq != null and ve_seq != ''"> , ve_seq </if>
+			<if test="per_seq != null and per_seq != ''"> , per_seq </if>
+			<if test="rc_date != null and rc_date != ''"> , rc_date </if>
+			<if test="rc_drive != null and rc_drive != ''"> , rc_drive </if>
+			<if test="rc_before != null and rc_before != ''"> , rc_before </if>
+			<if test="rc_after != null and rc_after != ''"> , rc_after </if>
+			<if test="rc_operate != null and rc_operate != ''"> , rc_operate </if>
+			<if test="rc_area != null and rc_area != ''"> , rc_area </if>
+			<if test="rc_pass != null and rc_pass != ''"> , rc_pass </if>
+			<if test="rc_park != null and rc_park != ''"> , rc_park </if>
+			<if test="rc_refuel != null and rc_refuel != ''"> , rc_refuel </if>
+			<if test="rc_amount != null and rc_amount != ''"> , rc_amount </if>
+			<if test="rc_price != null and rc_price != ''"> , rc_price </if>
+			<if test="rc_handle != null and rc_handle != ''"> , rc_handle </if>
+			<if test="rc_trouble != null and rc_trouble != ''"> , rc_trouble </if>
+			<if test="rc_part != null and rc_part != ''"> , rc_part </if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''"> , create_date </if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="ve_seq != null and ve_seq != ''"> , #{ve_seq} </if>
+			<if test="per_seq != null and per_seq != ''"> , #{per_seq} </if>
+			<if test="rc_date != null and rc_date != ''"> , DATE_FORMAT(#{rc_date}, '%Y%m%d%H%i%s') </if>
+			<if test="rc_drive != null and rc_drive != ''"> , #{rc_drive} </if>
+			<if test="rc_before != null and rc_before != ''"> , #{rc_before} </if>
+			<if test="rc_after != null and rc_after != ''"> , #{rc_after} </if>
+			<if test="rc_operate != null and rc_operate != ''"> , #{rc_operate} </if>
+			<if test="rc_area != null and rc_area != ''"> , #{rc_area} </if>
+			<if test="rc_pass != null and rc_pass != ''"> , #{rc_pass} </if>
+			<if test="rc_park != null and rc_park != ''"> , #{rc_park} </if>
+			<if test="rc_refuel != null and rc_refuel != ''"> , #{rc_refuel} </if>
+			<if test="rc_amount != null and rc_amount != ''"> , #{rc_amount} </if>
+			<if test="rc_price != null and rc_price != ''"> , #{rc_price} </if>
+			<if test="rc_handle != null and rc_handle != ''"> , #{rc_handle} </if>
+			<if test="rc_trouble != null and rc_trouble != ''"> , #{rc_trouble} </if>
+			<if test="rc_part != null and rc_part != ''"> , #{rc_part} </if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			rc_seq = VALUES(rc_seq)
+			<if test="ve_seq != null and ve_seq != ''"> , ve_seq = VALUES(ve_seq) </if>
+			<if test="per_seq != null and per_seq != ''"> , per_seq = VALUES(per_seq) </if>
+			<if test="rc_date != null and rc_date != ''"> , rc_date = VALUES(rc_date) </if>
+			<if test="rc_drive != null and rc_drive != ''"> , rc_drive = VALUES(rc_drive) </if>
+			<if test="rc_before != null and rc_before != ''"> , rc_before = VALUES(rc_before) </if>
+			<if test="rc_after != null and rc_after != ''"> , rc_after = VALUES(rc_after) </if>
+			<if test="rc_operate != null and rc_operate != ''"> , rc_operate = VALUES(rc_operate) </if>
+			<if test="rc_area != null and rc_area != ''"> , rc_area = VALUES(rc_area) </if>
+			<if test="rc_pass != null and rc_pass != ''"> , rc_pass = VALUES(rc_pass) </if>
+			<if test="rc_park != null and rc_park != ''"> , rc_park = VALUES(rc_park) </if>
+			<if test="rc_refuel != null and rc_refuel != ''"> , rc_refuel = VALUES(rc_refuel) </if>
+			<if test="rc_amount != null and rc_amount != ''"> , rc_amount = VALUES(rc_amount) </if>
+			<if test="rc_price != null and rc_price != ''"> , rc_price = VALUES(rc_price) </if>
+			<if test="rc_handle != null and rc_handle != ''"> , rc_handle = VALUES(rc_handle) </if>
+			<if test="rc_trouble != null and rc_trouble != ''"> , rc_trouble = VALUES(rc_trouble) </if>
+			<if test="rc_part != null and rc_part != ''"> , rc_part = VALUES(rc_part) </if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+		
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(rc_seq) FROM race 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND rc_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<insert id="insert_drive_history">
+		INSERT INTO race_history
+		(
+			rh_seq
+			, rc_seq
+			, rh_depart
+			, rh_arrival
+			, rh_distance
+			, rh_minute
+			, rh_pass
+			, rh_park
+			, rh_driver
+			, rh_note
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.rh_seq" index="index" separator=",">
+		(			
+			IF(${multi.rh_seq[index]} = 0, NULL, ${multi.rh_seq[index]})
+			, ${seq}
+			, '${multi.rh_depart[index]}'
+			, '${multi.rh_arrival[index]}'
+			, ${multi.rh_distance[index]}
+			, ${multi.rh_minute[index]}
+			, ${multi.rh_pass[index]}
+			, ${multi.rh_park[index]}
+			, '${multi.rh_driver[index]}'
+			, '${multi.rh_note[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			rh_seq = VALUES(rh_seq)
+			, rc_seq = VALUES(rc_seq)
+			, rh_depart = VALUES(rh_depart)
+			, rh_arrival = VALUES(rh_arrival)
+			, rh_distance = VALUES(rh_distance)
+			, rh_minute = VALUES(rh_minute)
+			, rh_pass = VALUES(rh_pass)
+			, rh_park = VALUES(rh_park)
+			, rh_driver = VALUES(rh_driver)
+			, rh_note = VALUES(rh_note)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 운행일지에서 차량 시퀀스 가져오기 -->
+	<select id="select_vehicle_seq" resultType="int">
+		SELECT IFNULL(ve_seq, 0) FROM race WHERE 1=1 AND rc_seq = #{seq}
+	</select>
+	
+	<!-- 차량 누적 주행거리 합계 가져오기 -->
+	<select id="select_drive_total" resultType="int">
+		SELECT
+			IFNULL(SUM(rc_after), 0)
+		FROM race WHERE 1=1
+			AND ve_seq = #{ve_seq}
+	</select>
+	
+	<!-- 차량 누적 주행거리 저장하기 -->
+	<update id="update_vehicle_drive">
+		UPDATE vehicle SET
+		ve_drive = #{drive_total},
+		update_date = DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		WHERE 1=1
+			AND ve_seq = #{ve_seq}
+	</update>
+	
+	<!-- 운행일지 삭제 -->
+	<delete id="delete_drive">
+		<if test="section == 1">
+		DELETE FROM race_history WHERE 1=1 AND rc_seq = #{seq}
+		</if>
+		
+		<if test="section == 2">
+		DELETE FROM race WHERE 1=1 AND rc_seq = #{seq}
+		</if>
+		
+		<if test="section == 3">
+		DELETE FROM race_history WHERE 1=1
+		AND rc_seq = #{seq}
+		<if test="rh_seq"> AND rh_seq NOT IN <foreach collection="multi.rh_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+		</if>
+	</delete>
+	
+	<!-- 운행일지 이전기록 가져오기 -->
+	<select id="select_drive_history" resultType="HashMap">
+		SELECT
+			rh_seq, rc_seq, rh_depart, rh_arrival, rh_distance, 
+			rh_minute, rh_pass, rh_park, rh_driver, rh_note
+		FROM race_history WHERE 1=1
+			AND rc_seq = #{seq}
+		ORDER BY rh_seq ASC
+	</select>
+	
+	<!-- 운행일지 기본기록 가져오기 -->
+	<select id="select_drive" resultType="HashMap">
+		SELECT 
+			a.rc_seq AS seq, a.ve_seq, c.ve_number, a.per_seq, b.per_name,
+			a.rc_date, a.rc_drive, a.rc_before, a.rc_after, 
+			a.rc_operate, a.rc_area, a.rc_pass, a.rc_park, a.rc_refuel, a.rc_amount, 
+			a.rc_price, a.rc_handle, a.rc_trouble, a.rc_part
+		FROM race a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		LEFT JOIN vehicle c ON a.ve_seq = c.ve_seq
+		WHERE 1=1
+			AND a.rc_seq = #{seq}
+	</select>
+	
+	<!-- 운행일지 보고서 가져오기 -->
+	<select id="select_drive_report" resultType="HashMap">
+		<if test="section == 1">
+			SELECT
+				a.ve_name, a.og_seq, b.og_name, a.ve_delegate, d.per_name,
+				a.ve_number, a.ve_check, c.og_name AS team_name,
+				CASE a.ve_type
+					WHEN 1 THEN '법인'
+					WHEN 2 THEN '임차'
+					ELSE '동원'
+				END AS ve_type
+			FROM vehicle a
+			LEFT JOIN organization b ON a.og_seq = b.og_seq
+			LEFT JOIN organization c ON a.ve_check = c.og_seq
+			LEFT JOIN personnel d ON a.ve_delegate = d.per_seq
+			WHERE 1=1
+				AND a.ve_seq = #{ve_seq}
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2">
+				AND a.ve_creater = #{auth_seq}
+				
+				OR a.ve_writer1 = #{auth_seq}
+				AND a.ve_seq = #{ve_seq}
+				
+				OR a.ve_writer2 = #{auth_seq}
+				AND a.ve_seq = #{ve_seq}
+				
+				OR a.ve_writer3 = #{auth_seq}
+				AND a.ve_seq = #{ve_seq}
+				
+				OR a.ve_writer4 = #{auth_seq}
+				AND a.ve_seq = #{ve_seq}				
+				</if>
+		</if>
+		
+		<if test="section == 2">
+			SELECT
+				DATE_FORMAT(#{date}, '%Y%m%d000000') AS rc_date,
+				SUM(rc_before) AS rc_before, SUM(rc_after) AS rc_after,
+				SUM(rc_drive) AS rc_drive, TRUNCATE(SUM(rc_refuel), 2) AS rc_refuel,
+				SUM(rc_amount) AS rc_amount, SUM(rc_trouble) AS rc_trouble,
+			    SUM(rc_pass) AS rc_pass, SUM(rc_park) AS rc_park, '' AS rc_area
+			FROM race WHERE 1=1
+				AND rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+				AND rc_date &lt;= DATE_FORMAT(LAST_DAY(#{date}), '%Y%m%d235959')
+				AND ve_seq = #{ve_seq}
+		</if>
+		
+		<if test="section == 3">
+			SELECT
+				rc_date, rc_before, rc_after,
+				rc_drive, rc_refuel,
+				rc_amount, rc_trouble,
+			    rc_pass, rc_park, rc_area
+			FROM race WHERE 1=1
+				AND rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+				AND rc_date &lt;= DATE_FORMAT(LAST_DAY(#{date}), '%Y%m%d235959')
+				AND ve_seq = #{ve_seq}
+			ORDER BY rc_date ASC
+		</if>
+	</select>
+	
+	<!-- 사고일지 리스트 가져오기 -->
+	<select id="select_accident_list" resultType="HashMap">
+		SELECT
+			a.ac_seq AS seq, 
+			a.per_organize, b.og_name AS group_name,
+			a.per_team, c.og_name AS team_name,
+			d.ve_name, d.ve_number, a.ac_blame,
+			a.ac_date, a.ac_place
+		FROM accident a
+		LEFT JOIN organization b ON a.per_organize = b.og_seq
+		LEFT JOIN organization c ON a.per_team = c.og_seq
+		LEFT JOIN vehicle d ON a.ve_seq = d.ve_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.ac_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+		 	<if test="end_date != null and end_date != ''"> AND a.ac_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+		 	<if test="group_name != null and group_name != ''"> AND a.per_organize = #{group_name} </if>		 	
+			<if test="ve_number != null and ve_number != ''"> AND d.ve_number LIKE '%${ve_number}%' </if>
+			<if test="auth == 1"> AND a.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+			<!-- <if test="group_name != null and group_name != ''"> AND b.og_name LIKE '%${group_name}%' </if> -->
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 사고일지 리스트 카운트 -->
+	<select id="select_accident_cnt" resultType="int">
+		SELECT
+			COUNT(a.ac_seq)
+		FROM accident a
+		LEFT JOIN organization b ON a.per_organize = b.og_seq
+		LEFT JOIN organization c ON a.per_team = c.og_seq
+		LEFT JOIN vehicle d ON a.ve_seq = d.ve_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.ac_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+		 	<if test="end_date != null and end_date != ''"> AND a.ac_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+		 	<if test="group_name != null and group_name != ''"> AND a.per_organize = #{group_name} </if>		 	
+			<if test="ve_number != null and ve_number != ''"> AND d.ve_number LIKE '%${ve_number}%' </if>
+			<if test="auth == 1"> AND a.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+			<!-- <if test="group_name != null and group_name != ''"> AND b.og_name LIKE '%${group_name}%' </if> -->
+	</select>
+	
+	<!-- 사고일지 추가/수정 -->
+	<insert id="insert_accident">
+		INSERT INTO accident
+		(
+			ac_seq
+			<if test="ve_seq != null and ve_seq != ''"> , ve_seq </if>
+			<if test="per_seq != null and per_seq != ''"> , per_seq </if>
+			<if test="per_organize != null and per_organize != ''"> , per_organize </if>
+			<if test="per_team != null and per_team != ''"> , per_team </if>
+			<if test="ac_date != null and ac_date != ''"> , ac_date </if>
+			<if test="ac_weather != null and ac_weather != ''"> , ac_weather </if>
+			<if test="ac_place != null and ac_place != ''"> , ac_place </if>
+			<if test="ac_model != null and ac_model != ''"> , ac_model </if>
+			<if test="ac_car != null and ac_car != ''"> , ac_car </if>
+			<if test="ac_phone != null and ac_phone != ''"> , ac_phone </if>
+			<if test="ac_summary != null and ac_summary != ''"> , ac_summary </if>
+			<if test="ac_blame != null and ac_blame != ''"> , ac_blame </if>
+			<if test="ac_report != null and ac_report != ''"> , ac_report </if>
+			<if test="ac_our1 != null and ac_our1 != ''"> , ac_our1 </if>
+			<if test="ac_our2 != null and ac_our2 != ''"> , ac_our2 </if>
+			<if test="ac_match1 != null and ac_match1 != ''"> , ac_match1 </if>
+			<if test="ac_match2 != null and ac_match2 != ''"> , ac_match2 </if>
+			<if test="ac_term != null and ac_term != ''"> , ac_term </if>
+			<if test="ac_etc != null and ac_etc != ''"> , ac_etc </if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''"> , create_date </if>
+		)
+		VALUES 
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="ve_seq != null and ve_seq != ''"> , #{ve_seq} </if>
+			<if test="per_seq != null and per_seq != ''"> , #{per_seq} </if>
+			<if test="per_organize != null and per_organize != ''"> , #{per_organize} </if>
+			<if test="per_team != null and per_team != ''"> , #{per_team} </if>
+			<if test="ac_date != null and ac_date != ''"> , DATE_FORMAT(#{ac_date}, '%Y%m%d%H%i%s') </if>
+			<if test="ac_weather != null and ac_weather != ''"> , #{ac_weather} </if>
+			<if test="ac_place != null and ac_place != ''"> , #{ac_place} </if>
+			<if test="ac_model != null and ac_model != ''"> , #{ac_model} </if>
+			<if test="ac_car != null and ac_car != ''"> , #{ac_car} </if>
+			<if test="ac_phone != null and ac_phone != ''"> , #{ac_phone} </if>
+			<if test="ac_summary != null and ac_summary != ''"> , #{ac_summary} </if>
+			<if test="ac_blame != null and ac_blame != ''"> , #{ac_blame} </if>
+			<if test="ac_report != null and ac_report != ''"> , DATE_FORMAT(#{ac_report}, '%Y%m%d%H%i%s') </if>
+			<if test="ac_our1 != null and ac_our1 != ''"> , #{ac_our1} </if>
+			<if test="ac_our2 != null and ac_our2 != ''"> , #{ac_our2} </if>
+			<if test="ac_match1 != null and ac_match1 != ''"> , #{ac_match1} </if>
+			<if test="ac_match2 != null and ac_match2 != ''"> , #{ac_match2} </if>
+			<if test="ac_term != null and ac_term != ''"> , #{ac_term} </if>
+			<if test="ac_etc != null and ac_etc != ''"> , #{ac_etc} </if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''"> , DATE_FORMAT(NOW(), '%Y%m%d%H%i%s') </if>		
+		)
+		ON DUPLICATE KEY UPDATE
+			ac_seq = VALUES(ac_seq)
+			<if test="ve_seq != null and ve_seq != ''"> , ve_seq = VALUES(ve_seq) </if>
+			<if test="per_seq != null and per_seq != ''"> , per_seq = VALUES(per_seq) </if>
+			<if test="per_organize != null and per_organize != ''"> , per_organize = VALUES(per_organize) </if>
+			<if test="per_team != null and per_team != ''"> , per_team = VALUES(per_team) </if>
+			<if test="ac_date != null and ac_date != ''"> , ac_date = VALUES(ac_date) </if>
+			<if test="ac_weather != null and ac_weather != ''"> , ac_weather = VALUES(ac_weather) </if>
+			<if test="ac_place != null and ac_place != ''"> , ac_place = VALUES(ac_place) </if>
+			<if test="ac_model != null and ac_model != ''"> , ac_model = VALUES(ac_model) </if>
+			<if test="ac_car != null and ac_car != ''"> , ac_car = VALUES(ac_car) </if>
+			<if test="ac_phone != null and ac_phone != ''"> , ac_phone = VALUES(ac_phone) </if>
+			<if test="ac_summary != null and ac_summary != ''"> , ac_summary = VALUES(ac_summary) </if>
+			<if test="ac_blame != null and ac_blame != ''"> , ac_blame = VALUES(ac_blame) </if>
+			<if test="ac_report != null and ac_report != ''"> , ac_report = VALUES(ac_report) </if>
+			<if test="ac_our1 != null and ac_our1 != ''"> , ac_our1 = VALUES(ac_our1) </if>
+			<if test="ac_our2 != null and ac_our2 != ''"> , ac_our2 = VALUES(ac_our2) </if>
+			<if test="ac_match1 != null and ac_match1 != ''"> , ac_match1 = VALUES(ac_match1) </if>
+			<if test="ac_match2 != null and ac_match2 != ''"> , ac_match2 = VALUES(ac_match2) </if>
+			<if test="ac_term != null and ac_term != ''"> , ac_term = VALUES(ac_term) </if>
+			<if test="ac_etc != null and ac_etc != ''"> , ac_etc = VALUES(ac_etc) </if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT MAX(ac_seq)
+			FROM accident WHERE 1=1
+			<if test="seq != null and seq != ''"> AND ac_seq = #{seq} </if>
+		</selectKey>	
+	</insert>
+	
+	<!-- 사고일지 기본정보 가져오기 -->
+	<select id="select_accident" resultType="HashMap">
+		SELECT 
+			a.ac_seq AS seq, a.ve_seq, b.ve_name, a.per_seq, c.per_name, a.per_organize, d.og_name as per_organize_name, a.per_team, e.og_name as per_team_name, a.ac_date, 
+			a.ac_weather, a.ac_place, a.ac_model, a.ac_car, a.ac_phone, a.ac_summary, 
+			a.ac_blame, a.ac_report, a.ac_our1, a.ac_our2, 
+			a.ac_match1, a.ac_match2, a.ac_term, a.ac_etc
+		FROM accident a 
+		LEFT JOIN vehicle b
+			ON a.ve_seq = b.ve_seq
+		LEFT JOIN personnel c
+			ON a.per_seq = c.per_seq
+		LEFT JOIN organization d
+			ON a.per_organize = d.og_seq
+		LEFT JOIN organization e
+			ON a.per_team = e.og_seq
+		WHERE 1=1
+			AND ac_seq = #{seq}
+	</select>
+	
+	<!-- 사고일지 삭제 -->
+	<delete id="delete_accident">
+		DELETE FROM accident WHERE 1=1 AND ac_seq = #{seq}
+	</delete>	
+	
+	<!-- 사고일지 보고서 -->
+	<select id="select_accident_report" resultType="HashMap">
+		SELECT
+			a.ac_seq AS seq, a.per_team, b.og_name AS team_name, d.pos_seq, d.per_name, 
+			a.ac_date, a.ac_place, c.ve_name, c.ve_number, a.ac_weather,
+			a.ac_model, a.ac_car, a.ac_phone, a.ac_summary,
+			a.ac_our1, a.ac_our2, a.ac_match1, a.ac_match2, a.ac_blame,
+			a.ac_term, a.ac_etc
+		FROM accident a
+		LEFT JOIN organization b ON a.per_team = b.og_seq
+		LEFT JOIN vehicle c ON a.ve_seq = c.ve_seq
+		LEFT JOIN personnel d ON a.per_seq = d.per_seq
+		WHERE 1=1
+			AND a.ac_seq = #{seq}
+	</select>
+	
+	
+	
+	<!-- 차량관리 리스트 개수 가져오기 -->
+	<select id="select_vehicle_cnt" resultType="int">
+		SELECT
+			COUNT(a.ve_seq)
+		FROM vehicle a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		LEFT JOIN organization c ON a.ve_check = c.og_seq
+		LEFT JOIN fuel d ON a.ve_fuel = d.seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="org_name != null and org_name != ''"> AND a.og_seq = #{org_name} </if>
+			<if test="ve_number != null and ve_number != ''"> AND a.ve_number LIKE '%${ve_number}%'</if>
+			<if test="ve_name != null and ve_name != ''"> AND a.ve_name LIKE '%${ve_name}%'</if>
+			<if test="ve_status != null and ve_status != ''"> AND a.ve_status = #{ve_status} </if>
+			<if test="fu_name != null and fu_name != ''"> AND d.name LIKE '%${fu_name}%' </if>
+			<if test="ve_yn != null and ve_yn != ''">
+				<if test="ve_yn == 1"> AND a.ve_expiry &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+				<if test="ve_yn == 2"> AND a.ve_expiry > DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+			</if>
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+			<if test="auth == 2 or auth == 3"> 
+				AND a.ve_creater = #{auth_seq}
+				
+				OR a.ve_writer1 = #{auth_seq}
+				<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+				<if test="org_name != null and org_name != ''"> AND a.og_seq = #{org_name} </if>
+				<if test="ve_number != null and ve_number != ''"> AND a.ve_number LIKE '%${ve_number}%'</if>
+				<if test="ve_name != null and ve_name != ''"> AND a.ve_name LIKE '%${ve_name}%'</if>
+				<if test="ve_status != null and ve_status != ''"> AND a.ve_status = #{ve_status} </if>
+				<if test="fu_name != null and fu_name != ''"> AND d.name LIKE '%${fu_name}%' </if>
+				<if test="ve_yn != null and ve_yn != ''">
+					<if test="ve_yn == 1"> AND a.ve_expiry &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+					<if test="ve_yn == 2"> AND a.ve_expiry > DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+				</if>
+				
+				OR a.ve_writer2 = #{auth_seq}
+				<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+				<if test="org_name != null and org_name != ''"> AND a.og_seq = #{org_name} </if>
+				<if test="ve_number != null and ve_number != ''"> AND a.ve_number LIKE '%${ve_number}%'</if>
+				<if test="ve_name != null and ve_name != ''"> AND a.ve_name LIKE '%${ve_name}%'</if>
+				<if test="ve_status != null and ve_status != ''"> AND a.ve_status = #{ve_status} </if>
+				<if test="fu_name != null and fu_name != ''"> AND d.name LIKE '%${fu_name}%' </if>
+				<if test="ve_yn != null and ve_yn != ''">
+					<if test="ve_yn == 1"> AND a.ve_expiry &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+					<if test="ve_yn == 2"> AND a.ve_expiry > DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+				</if>
+				
+				OR a.ve_writer3 = #{auth_seq}
+				<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+				<if test="org_name != null and org_name != ''"> AND a.og_seq = #{org_name} </if>
+				<if test="ve_number != null and ve_number != ''"> AND a.ve_number LIKE '%${ve_number}%'</if>
+				<if test="ve_name != null and ve_name != ''"> AND a.ve_name LIKE '%${ve_name}%'</if>
+				<if test="ve_status != null and ve_status != ''"> AND a.ve_status = #{ve_status} </if>
+				<if test="fu_name != null and fu_name != ''"> AND d.name LIKE '%${fu_name}%' </if>
+				<if test="ve_yn != null and ve_yn != ''">
+					<if test="ve_yn == 1"> AND a.ve_expiry &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+					<if test="ve_yn == 2"> AND a.ve_expiry > DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+				</if>
+				
+				OR a.ve_writer4 = #{auth_seq}
+				<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+				<if test="org_name != null and org_name != ''"> AND a.og_seq = #{org_name} </if>
+				<if test="ve_number != null and ve_number != ''"> AND a.ve_number LIKE '%${ve_number}%'</if>
+				<if test="ve_name != null and ve_name != ''"> AND a.ve_name LIKE '%${ve_name}%'</if>
+				<if test="ve_status != null and ve_status != ''"> AND a.ve_status = #{ve_status} </if>
+				<if test="fu_name != null and fu_name != ''"> AND d.name LIKE '%${fu_name}%' </if>
+				<if test="ve_yn != null and ve_yn != ''">
+					<if test="ve_yn == 1"> AND a.ve_expiry &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+					<if test="ve_yn == 2"> AND a.ve_expiry > DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+				</if>
+			</if>
+	</select>
+	
+	<!-- 차량관리 리스트 가져오기 -->
+	<select id="select_vehicle_list" resultType="HashMap">
+		SELECT
+			a.ve_seq AS seq, a.og_seq, b.og_name AS group_name, a.ve_check, c.og_name AS check_name, 
+		    a.ve_model, a.ve_name, a.ve_number, a.update_date, a.ve_year, a.ve_type,
+		    a.ve_fuel, a.ve_drive,
+		    CASE 
+		    	WHEN DATE_FORMAT(NOW(), '%Y%m%d235959') &lt;= ve_expiry THEN 1
+		    	ELSE 2
+		    END AS ve_yn
+		FROM vehicle a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		LEFT JOIN organization c ON a.ve_check = c.og_seq
+		LEFT JOIN fuel d ON a.ve_fuel = d.seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="org_name != null and org_name != ''"> AND a.og_seq = #{org_name} </if>
+			<if test="ve_number != null and ve_number != ''"> AND a.ve_number LIKE '%${ve_number}%'</if>
+			<if test="ve_name != null and ve_name != ''"> AND a.ve_name LIKE '%${ve_name}%'</if>
+			<if test="ve_status != null and ve_status != ''"> AND a.ve_status = #{ve_status} </if>
+			<if test="fu_name != null and fu_name != ''"> AND d.name LIKE '%${fu_name}%' </if>
+			<if test="ve_yn != null and ve_yn != ''">
+				<if test="ve_yn == 1"> AND a.ve_expiry &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+				<if test="ve_yn == 2"> AND a.ve_expiry > DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+			</if>
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+			<if test="auth == 2 or auth == 3"> 
+				AND a.ve_creater = #{auth_seq}
+				
+				OR a.ve_writer1 = #{auth_seq}
+				<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+				<if test="org_name != null and org_name != ''"> AND a.og_seq = #{org_name} </if>
+				<if test="ve_number != null and ve_number != ''"> AND a.ve_number LIKE '%${ve_number}%'</if>
+				<if test="ve_name != null and ve_name != ''"> AND a.ve_name LIKE '%${ve_name}%'</if>
+				<if test="ve_status != null and ve_status != ''"> AND a.ve_status = #{ve_status} </if>
+				<if test="fu_name != null and fu_name != ''"> AND d.name LIKE '%${fu_name}%' </if>
+				<if test="ve_yn != null and ve_yn != ''">
+					<if test="ve_yn == 1"> AND a.ve_expiry &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+					<if test="ve_yn == 2"> AND a.ve_expiry > DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+				</if>
+				
+				OR a.ve_writer2 = #{auth_seq}
+				<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+				<if test="org_name != null and org_name != ''"> AND a.og_seq = #{org_name} </if>
+				<if test="ve_number != null and ve_number != ''"> AND a.ve_number LIKE '%${ve_number}%'</if>
+				<if test="ve_name != null and ve_name != ''"> AND a.ve_name LIKE '%${ve_name}%'</if>
+				<if test="ve_status != null and ve_status != ''"> AND a.ve_status = #{ve_status} </if>
+				<if test="fu_name != null and fu_name != ''"> AND d.name LIKE '%${fu_name}%' </if>
+				<if test="ve_yn != null and ve_yn != ''">
+					<if test="ve_yn == 1"> AND a.ve_expiry &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+					<if test="ve_yn == 2"> AND a.ve_expiry > DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+				</if>
+				
+				OR a.ve_writer3 = #{auth_seq}
+				<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+				<if test="org_name != null and org_name != ''"> AND a.og_seq = #{org_name} </if>
+				<if test="ve_number != null and ve_number != ''"> AND a.ve_number LIKE '%${ve_number}%'</if>
+				<if test="ve_name != null and ve_name != ''"> AND a.ve_name LIKE '%${ve_name}%'</if>
+				<if test="ve_status != null and ve_status != ''"> AND a.ve_status = #{ve_status} </if>
+				<if test="fu_name != null and fu_name != ''"> AND d.name LIKE '%${fu_name}%' </if>
+				<if test="ve_yn != null and ve_yn != ''">
+					<if test="ve_yn == 1"> AND a.ve_expiry &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+					<if test="ve_yn == 2"> AND a.ve_expiry > DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+				</if>
+				
+				OR a.ve_writer4 = #{auth_seq}
+				<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+				<if test="org_name != null and org_name != ''"> AND a.og_seq = #{org_name} </if>
+				<if test="ve_number != null and ve_number != ''"> AND a.ve_number LIKE '%${ve_number}%'</if>
+				<if test="ve_name != null and ve_name != ''"> AND a.ve_name LIKE '%${ve_name}%'</if>
+				<if test="ve_status != null and ve_status != ''"> AND a.ve_status = #{ve_status} </if>
+				<if test="fu_name != null and fu_name != ''"> AND d.name LIKE '%${fu_name}%' </if>
+				<if test="ve_yn != null and ve_yn != ''">
+					<if test="ve_yn == 1"> AND a.ve_expiry &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+					<if test="ve_yn == 2"> AND a.ve_expiry > DATE_FORMAT(NOW(), '%Y%m%d235959') </if>
+				</if>
+			</if>			
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 차량관리 기본정보 가져오기 -->
+	<select id="select_vehicle" resultType="HashMap">
+		SELECT
+			a.ve_seq AS seq, a.og_seq, b.og_name, a.ve_number, a.ve_name, a.ve_model, a.ve_year, a.ve_identify, a.ve_check, c.og_name as ve_check_name,
+			a.check_date, a.ve_delegate, d.per_name as ve_delegate_name, a.delegate_date, a.ve_expiry, a.ve_drive, a.sys_seq, a.ve_project, a.ve_fuel, 
+			a.ve_buy, a.ve_type, a.ve_use, a.ve_free, a.ve_pass, a.ve_urgent, a.ve_appoint, a.ve_lightbar, 
+			a.ve_police, a.ve_recorder, a.recorder_num, a.ve_gps, a.gps_num, a.ve_lift, a.ve_status, a.ve_note, 
+			a.ve_creater, a.ve_writer1, a.ve_writer2, a.ve_writer3, a.ve_writer4,
+			(SELECT per_name FROM personnel WHERE per_seq = a.ve_writer1) as ve_writer1_name,
+			(SELECT per_name FROM personnel WHERE per_seq = a.ve_writer2) as ve_writer2_name,
+			(SELECT per_name FROM personnel WHERE per_seq = a.ve_writer3) as ve_writer3_name,
+			(SELECT per_name FROM personnel WHERE per_seq = a.ve_writer4) as ve_writer4_name
+		FROM vehicle a
+		LEFT JOIN organization b
+			ON a.og_seq = b.og_seq
+		LEFT JOIN organization c
+			ON a.ve_check = c.og_seq
+		LEFT JOIN personnel d
+			ON a.ve_delegate = d.per_seq
+		WHERE 1=1
+			AND a.ve_seq = #{seq}
+	</select>
+	
+	<!-- 차량관리 기본정보 로그 가져오기 -->
+	<select id="select_vehicle_log" resultType="HashMap">
+		SELECT
+			vl_seq, ve_seq, vl_divide, vl_update, vl_change, vl_basis
+		FROM vehicle_log WHERE 1=1
+			AND ve_seq = #{seq}
+	</select>
+	
+	<!-- 차량관리 추가/수정 -->
+	<insert id="insert_vehicle">
+		INSERT INTO vehicle
+		(
+			ve_seq
+			<if test="og_seq != null and og_seq != ''"> , og_seq</if>
+			<if test="ve_number != null and ve_number != ''"> , ve_number</if>
+			<if test="ve_name != null and ve_name != ''"> , ve_name</if>
+			<if test="ve_model != null and ve_model != ''"> , ve_model</if>
+			<if test="ve_year != null and ve_year != ''"> , ve_year</if>
+			<if test="ve_identify != null and ve_identify != ''"> , ve_identify</if>
+			<if test="ve_check != null and ve_check != ''">, ve_check</if>
+			<if test="check_date != null and check_date != ''">, check_date</if>
+			<if test="ve_delegate != null and ve_delegate != ''">, ve_delegate</if>
+			<if test="delegate_date != null and delegate_date != ''">, delegate_date</if>
+			<if test="ve_expiry != null and ve_expiry != ''"> , ve_expiry</if>			
+			<if test="ve_drive != null and ve_drive != ''">, ve_drive</if>			
+			<if test="sys_seq != null and sys_seq != ''">, sys_seq</if>
+			<if test="ve_project != null and ve_project != ''"> , ve_project</if>
+			<if test="ve_fuel != null and ve_fuel != ''"> , ve_fuel</if>
+			<if test="ve_buy != null and ve_buy != ''"> , ve_buy</if>
+			<if test="ve_type != null and ve_type != ''">, ve_type</if>
+			<if test="ve_use != null and ve_use != ''"> , ve_use</if>
+			<if test="ve_free != null and ve_free != ''">, ve_free</if>
+			<if test="ve_pass != null and ve_pass != ''">, ve_pass</if>
+			<if test="ve_urgent != null and ve_urgent != ''">, ve_urgent</if>
+			<if test="ve_appoint != null and ve_appoint != ''">, ve_appoint</if>
+			<if test="ve_lightbar != null and ve_lightbar != ''">, ve_lightbar</if>
+			<if test="ve_police != null and ve_police != ''">, ve_police</if>
+			<if test="ve_recorder != null and ve_recorder != ''">, ve_recorder</if>
+			<if test="recorder_num != null and recorder_num != ''">, recorder_num</if>
+			<if test="ve_gps != null and ve_gps != ''">, ve_gps</if>
+			<if test="gps_num != null and gps_num != ''">, gps_num</if>
+			<if test="ve_lift != null and ve_lift != ''">, ve_lift</if>
+			<if test="ve_status != null and ve_status != ''">, ve_status</if>
+			<if test="ve_note != null and ve_note != ''">, ve_note</if>
+			<if test="ve_creater != null and ve_creater != ''"> , ve_creater</if>
+			<if test="ve_writer1 != null and ve_writer1 != ''"> , ve_writer1</if>
+			<if test="ve_writer2 != null and ve_writer2 != ''">, ve_writer2</if>
+			<if test="ve_writer3 != null and ve_writer3 != ''">, ve_writer3</if>
+			<if test="ve_writer4 != null and ve_writer4 != ''">, ve_writer4</if>
+			, update_date
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="og_seq != null and og_seq != ''"> , #{og_seq}</if>
+			<if test="ve_number != null and ve_number != ''"> , #{ve_number}</if>
+			<if test="ve_name != null and ve_name != ''"> , #{ve_name}</if>
+			<if test="ve_model != null and ve_model != ''"> , #{ve_model}</if>
+			<if test="ve_year != null and ve_year != ''"> , #{ve_year}</if>
+			<if test="ve_identify != null and ve_identify != ''"> , #{ve_identify}</if>
+			<if test="ve_check != null and ve_check != ''">, #{ve_check}</if>
+			<if test="check_date != null and check_date != ''">, DATE_FORMAT(#{check_date}, '%Y%m%d%H%i%s')</if>
+			<if test="ve_delegate != null and ve_delegate != ''">, #{ve_delegate}</if>
+			<if test="delegate_date != null and delegate_date != ''">, DATE_FORMAT(#{delegate_date}, '%Y%m%d%H%i%s')</if>
+			<if test="ve_expiry != null and ve_expiry != ''"> , DATE_FORMAT(#{ve_expiry}, '%Y%m%d%H%i%s')</if>			
+			<if test="ve_drive != null and ve_drive != ''">, #{ve_drive}</if>			
+			<if test="sys_seq != null and sys_seq != ''">, #{sys_seq}</if>
+			<if test="ve_project != null and ve_project != ''"> , #{ve_project}</if>
+			<if test="ve_fuel != null and ve_fuel != ''"> , #{ve_fuel}</if>
+			<if test="ve_buy != null and ve_buy != ''"> , DATE_FORMAT(#{ve_buy}, '%Y%m%d%H%i%s')	</if>
+			<if test="ve_type != null and ve_type != ''">, #{ve_type}</if>
+			<if test="ve_use != null and ve_use != ''"> , #{ve_use}</if>
+			<if test="ve_free != null and ve_free != ''">, #{ve_free}</if>
+			<if test="ve_pass != null and ve_pass != ''">, #{ve_pass}</if>
+			<if test="ve_urgent != null and ve_urgent != ''">, #{ve_urgent}</if>
+			<if test="ve_appoint != null and ve_appoint != ''">, DATE_FORMAT(#{ve_appoint}, '%Y%m%d%H%i%s')</if>
+			<if test="ve_lightbar != null and ve_lightbar != ''">, #{ve_lightbar}</if>
+			<if test="ve_police != null and ve_police != ''">, #{ve_police}</if>
+			<if test="ve_recorder != null and ve_recorder != ''">, #{ve_recorder}</if>
+			<if test="recorder_num != null and recorder_num != ''">, #{recorder_num}</if>
+			<if test="ve_gps != null and ve_gps != ''">, #{ve_gps}</if>
+			<if test="gps_num != null and gps_num != ''">, #{gps_num}</if>
+			<if test="ve_lift != null and ve_lift != ''">, #{ve_lift}</if>
+			<if test="ve_status != null and ve_status != ''">, #{ve_status}</if>
+			<if test="ve_note != null and ve_note != ''">, #{ve_note}</if>
+			<if test="ve_creater != null and ve_creater != ''"> , #{ve_creater}</if>
+			<if test="ve_writer1 != null and ve_writer1 != ''"> , #{ve_writer1}</if>
+			<if test="ve_writer2 != null and ve_writer2 != ''">, #{ve_writer2}</if>
+			<if test="ve_writer3 != null and ve_writer3 != ''">, #{ve_writer3}</if>
+			<if test="ve_writer4 != null and ve_writer4 != ''">, #{ve_writer4}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			ve_seq = VALUES(ve_seq)
+			<if test="og_seq != null and og_seq != ''"> , og_seq = VALUES(og_seq)</if>
+			<if test="ve_number != null and ve_number != ''"> , ve_number = VALUES(ve_number)</if>
+			<if test="ve_name != null and ve_name != ''"> , ve_name = VALUES(ve_name)</if>
+			<if test="ve_model != null and ve_model != ''"> , ve_model = VALUES(ve_model)</if>
+			<if test="ve_year != null and ve_year != ''"> , ve_year = VALUES(ve_year)</if>
+			<if test="ve_identify != null and ve_identify != ''"> , ve_identify = VALUES(ve_identify)</if>
+			<if test="ve_check != null and ve_check != ''">, ve_check = VALUES(ve_check)</if>
+			<if test="check_date != null and check_date != ''">, check_date = VALUES(check_date)</if>
+			<if test="ve_delegate != null and ve_delegate != ''">, ve_delegate = VALUES(ve_delegate)</if>
+			<if test="delegate_date != null and delegate_date != ''">, delegate_date = VALUES(delegate_date)</if>
+			<if test="ve_expiry != null and ve_expiry != ''"> , ve_expiry = VALUES(ve_expiry)	</if>		
+			<if test="ve_drive != null and ve_drive != ''">, ve_drive = VALUES(ve_drive)</if>			
+			<if test="sys_seq != null and sys_seq != ''">, sys_seq = VALUES(sys_seq)</if>
+			<if test="ve_project != null and ve_project != ''"> , ve_project = VALUES(ve_project)</if>
+			<if test="ve_fuel != null and ve_fuel != ''"> , ve_fuel = VALUES(ve_fuel)</if>
+			<if test="ve_buy != null and ve_buy != ''"> , ve_buy = VALUES(ve_buy)</if>
+			<if test="ve_type != null and ve_type != ''">, ve_type = VALUES(ve_type)</if>
+			<if test="ve_use != null and ve_use != ''"> , ve_use = VALUES(ve_use)</if>
+			<if test="ve_free != null and ve_free != ''">, ve_free = VALUES(ve_free)</if>
+			<if test="ve_pass != null and ve_pass != ''">, ve_pass = VALUES(ve_pass)</if>
+			<if test="ve_urgent != null and ve_urgent != ''">, ve_urgent = VALUES(ve_urgent)</if>
+			<if test="ve_appoint != null and ve_appoint != ''">, ve_appoint = VALUES(ve_appoint)</if>
+			<if test="ve_lightbar != null and ve_lightbar != ''">, ve_lightbar = VALUES(ve_lightbar)</if>
+			<if test="ve_police != null and ve_police != ''">, ve_police = VALUES(ve_police)</if>
+			<if test="ve_recorder != null and ve_recorder != ''">, ve_recorder = VALUES(ve_recorder)</if>
+			<if test="recorder_num != null and recorder_num != ''">, recorder_num = VALUES(recorder_num)</if>
+			<if test="ve_gps != null and ve_gps != ''">, ve_gps = VALUES(ve_gps)</if>
+			<if test="gps_num != null and gps_num != ''">, gps_num = VALUES(gps_num)</if>
+			<if test="ve_lift != null and ve_lift != ''">, ve_lift = VALUES(ve_lift)</if>
+			<if test="ve_status != null and ve_status != ''">, ve_status = VALUES(ve_status)</if>
+			<if test="ve_note != null and ve_note != ''">, ve_note = VALUES(ve_note)</if>
+			<if test="ve_creater != null and ve_creater != ''"> , ve_creater = VALUES(ve_creater)</if>
+			<if test="ve_writer1 != null and ve_writer1 != ''"> , ve_writer1 = VALUES(ve_writer1)</if>
+			<if test="ve_writer2 != null and ve_writer2 != ''">, ve_writer2 = VALUES(ve_writer2)</if>
+			<if test="ve_writer3 != null and ve_writer3 != ''">, ve_writer3 = VALUES(ve_writer3)</if>
+			<if test="ve_writer4 != null and ve_writer4 != ''">, ve_writer4 = VALUES(ve_writer4)</if>
+			, update_date = VALUES(update_date)
+			
+			<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+				SELECT
+					MAX(ve_seq) FROM vehicle 
+				WHERE 1=1
+				<if test="seq != null and seq != ''"> AND ve_seq = #{seq} </if>
+			</selectKey>
+	</insert>
+	
+	<!-- 차량관리 변동사항 구분 -->
+	<select id="select_vehicle_section" resultType="int">
+		<!-- 사업단 변경 -->
+		<if test="section == 1">
+		SELECT
+			IF(og_seq = #{og_seq}, 1, 2)
+		FROM vehicle WHERE 1=1
+			AND ve_seq = #{seq}
+		</if>
+		
+		<!-- 작성자 변경 -->
+		<if test="section == 2">
+		SELECT
+			IF(ve_writer1 = #{ve_writer1}, 1, 2)
+		FROM vehicle WHERE 1=1
+			AND ve_seq = #{seq}
+		</if>
+		
+		<!-- 차량사용상태 변경 -->
+		<if test="section == 3">
+		SELECT
+			IF(ve_status = #{ve_status}, 1, 2)
+		FROM vehicle WHERE 1=1
+			AND ve_seq = #{seq}
+		</if>
+	</select>
+	
+	<!-- 차량관리 변동사항 -->
+	<select id="select_vehicle_change" resultType="HashMap">
+		<!-- 사업단 변경 -->
+		<if test="section == 1">
+		SELECT
+			CONCAT
+			(
+				(SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq = a.og_seq), '▶',
+				(SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq = #{og_seq})
+			) AS reason
+		FROM vehicle a WHERE 1=1
+			AND a.ve_seq = #{seq}
+		</if>
+		
+		<!-- 작성자 변경 -->
+		<if test="section == 2">
+		SELECT
+			CONCAT
+			(
+				(SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq = a.ve_writer1), '▶',
+				(SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq = #{ve_writer1})
+			) AS reason
+		FROM vehicle a WHERE 1=1
+			AND a.ve_seq = #{seq}
+		</if>
+		
+		<!-- 차량사용상태 변경 -->
+		<if test="section == 3">
+		SELECT
+			CONCAT
+			(
+				IF(a.ve_status = 1, '가용', '불용'), '▶', IF(#{ve_status} = 1, '가용', '불용')
+			) AS reason
+		FROM vehicle a WHERE 1=1
+			AND a.ve_seq = #{seq}
+		</if>
+	</select>
+	
+	<!-- 차량관리 변동사항 추가/수정 -->
+	<insert id="insert_vehicle_log">
+		<!-- 근거 수정 -->
+		<if test="section == 1">
+			INSERT INTO vehicle_log
+			(
+				vl_seq
+				, vl_basis
+				, update_date
+			)
+			VALUES
+			<foreach collection="multi.vl_seq" index="index" separator=",">
+			(
+				${multi.vl_seq[index]}
+				, '${multi.vl_basis[index]}'
+				, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			)
+			</foreach>
+			ON DUPLICATE KEY UPDATE
+				vl_seq = VALUES(vl_seq)
+				, vl_basis = VALUES(vl_basis)
+				, update_date = VALUES(update_date)
+		</if>
+		
+		<!-- 변경사항 추가 -->
+		<if test="section == 2">
+			INSERT INTO vehicle_log
+			(
+				ve_seq
+				, vl_divide
+				, vl_update
+				, vl_change
+				, update_date
+			)
+			VALUES
+			<foreach collection="add_log" item="item" separator=",">
+			(
+				#{seq}
+				, #{item.divide}
+				, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+				, #{item.reason}
+				, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			)
+			</foreach>
+		</if>	
+	</insert>
+	
+	<!-- 차량관리 삭제 -->
+	<delete id="delete_vehicle">
+		<!-- 차량관리 로그 삭제 -->
+		<if test="section == 1">
+			DELETE FROM vehicle_log WHERE 1=1 AND ve_seq = #{seq}
+		</if>
+		
+		<!-- 차량관리 삭제 -->
+		<if test="section == 2">
+			DELETE FROM vehicle WHERE 1=1 AND ve_seq = #{seq}
+		</if>
+	</delete>
+	
+	<!-- 일수 가져오기 -->
+	<select id="select_days" resultType="int">
+		<if test="section &lt; 5">
+		SELECT DATE_FORMAT(LAST_DAY(#{date}), '%d')
+		</if>
+		
+		<if test="section == 5">
+		SELECT 0
+		</if>
+	</select>
+	
+	<!-- 설비 목록 가져오기 -->
+	<select id="select_system_list" resultType="HashMap">
+		SELECT seq AS sys_seq
+		FROM system WHERE 1=1
+			AND name IN
+			(
+				'대외지원', '업무지원', '고장수리', 'TCS/축중기', 'FTMS', 
+				'전송', '선로', '하이패스', 'TCS/하이패스', '자가망', '제한/면탈', 
+				'감독지원', '단장', '부대/대외', '네트워크', '장대터널', '대외ITS', '본사', '교통/주차', '원톨링', '스마트톨링'
+			)
+	</select>
+	
+	<!-- 차량운행실적 -->
+	<select id="select_revenue_list" resultType="HashMap">		
+		<!-- 연료별 -->
+		<if test="section == 1">
+		SELECT
+			tb1.fu_name AS name,
+			IFNULL(TRUNCATE(tb2.value, 0), 0) AS value1, IFNULL(TRUNCATE(tb3.value, 0), 0) AS value2,
+			IFNULL(TRUNCATE(tb4.value, 0), 0) AS value3, IFNULL(TRUNCATE(tb5.value, 2), 0) AS value4,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / IFNULL(tb4.value, 0), 2), 0) AS value5,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / ${days}, 2), 0) AS value6
+		FROM
+		(
+			SELECT
+				a.seq AS fu_seq, a.name AS fu_name, a.code AS fu_code
+			FROM fuel a WHERE 1=1
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.ve_seq) AS value, a.ve_fuel
+			FROM vehicle a
+			WHERE 1=1
+				AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY a.ve_fuel
+		)tb2 ON tb1.fu_seq = tb2.ve_fuel
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.rc_seq) AS value, b.ve_fuel
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.ve_fuel
+		)tb3 ON tb1.fu_seq = tb3.ve_fuel
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_after - a.rc_before) AS value,
+				b.ve_fuel
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.ve_fuel
+		)tb4 ON tb1.fu_seq = tb4.ve_fuel
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_refuel) AS value, b.ve_fuel
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.ve_fuel
+		)tb5 ON tb1.fu_seq = tb5.ve_fuel
+		ORDER BY tb1.fu_code ASC
+		</if>
+		
+		<!-- 설비별 -->
+		<if test="section == 2">
+		SELECT
+			tb1.sys_name AS name,
+			IFNULL(TRUNCATE(tb2.value, 0), 0) AS value1, IFNULL(TRUNCATE(tb3.value, 0), 0) AS value2,
+			IFNULL(TRUNCATE(tb4.value, 0), 0) AS value3, IFNULL(TRUNCATE(tb5.value, 2), 0) AS value4,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / IFNULL(tb4.value, 0), 2), 0) AS value5,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / ${days}, 2), 0) AS value6
+		FROM
+		(
+			SELECT
+				a.seq AS sys_seq, a.name AS sys_name, a.code AS sys_code
+			FROM system a WHERE 1=1
+				<if test="none_system"> AND a.seq = 0 </if>
+				<if test="system"> AND a.seq IN <foreach collection="system" item="item" open="(" close=")" separator=","> #{item.sys_seq} </foreach> </if>
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.ve_seq) AS value, a.sys_seq
+			FROM vehicle a
+			WHERE 1=1
+				AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY a.sys_seq
+		)tb2 ON tb1.sys_seq = tb2.sys_seq
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.rc_seq) AS value, b.sys_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.sys_seq
+		)tb3 ON tb1.sys_seq = tb3.sys_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_after - a.rc_before) AS value,
+				b.sys_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.sys_seq
+		)tb4 ON tb1.sys_seq = tb4.sys_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_refuel) AS value, b.sys_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.sys_seq
+		)tb5 ON tb1.sys_seq = tb5.sys_seq
+		ORDER BY tb1.sys_code ASC
+		</if>
+		
+		<!-- 사업단 -->
+		<if test="section == 3">
+		SELECT
+			tb1.og_name AS name,
+			IFNULL(TRUNCATE(tb2.value, 0), 0) AS value1, IFNULL(TRUNCATE(tb3.value, 0), 0) AS value2,
+			IFNULL(TRUNCATE(tb4.value, 0), 0) AS value3, IFNULL(TRUNCATE(tb5.value, 2), 0) AS value4,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / IFNULL(tb4.value, 0), 2), 0) AS value5,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / ${days}, 2), 0) AS value6
+		FROM
+		(
+			SELECT
+				a.og_seq, a.og_name, a.og_code
+			FROM organization a WHERE 1=1
+				AND a.og_group = 1 AND a.og_code >= 200000000
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.ve_seq) AS value, a.og_seq
+			FROM vehicle a
+			WHERE 1=1
+				AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY a.og_seq
+		)tb2 ON tb1.og_seq = tb2.og_seq
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.rc_seq) AS value, b.og_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.og_seq
+		)tb3 ON tb1.og_seq = tb3.og_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_after - a.rc_before) AS value,
+				b.og_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.og_seq
+		)tb4 ON tb1.og_seq = tb4.og_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_refuel) AS value, b.og_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.og_seq
+		)tb5 ON tb1.og_seq = tb5.og_seq
+		ORDER BY tb1.og_code ASC
+		</if>
+		
+		<!-- 차량 통계 -->
+		<if test="section == 4">
+		SELECT
+			b.ve_number, SUM(a.rc_drive) AS rc_drive, SUM(a.rc_amount) AS rc_amount, 
+		    SUM(a.rc_park) AS rc_park, SUM(a.rc_pass) AS rc_pass, SUM(a.rc_trouble) AS rc_trouble
+		FROM race a
+		LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+		WHERE 1=1
+			AND a.rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			<if test="auth == 1"> AND b.og_seq = #{auth_seq} </if>
+			<if test="auth == 2">
+			AND b.ve_creater = #{auth_seq}
+			
+			OR b.ve_writer1 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			
+			OR b.ve_writer2 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			
+			OR b.ve_writer3 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			
+			OR b.ve_writer4 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			</if>
+		GROUP BY a.ve_seq
+		</if>
+		
+		<!-- 일별 운행 -->
+		<if test="section == 5">
+		SELECT
+			a.rc_date, b.ve_number, a.rc_drive,
+			a.rc_amount, a.rc_park, a.rc_pass, a.rc_trouble
+		FROM race a
+		LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+		WHERE 1=1
+			AND a.rc_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959')
+			<if test="auth == 1"> AND b.og_seq = #{auth_seq} </if>
+			<if test="auth == 2">
+			AND b.ve_creater = #{auth_seq}
+			
+			OR b.ve_writer1 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959')
+			
+			OR b.ve_writer2 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959')
+			
+			OR b.ve_writer3 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959')
+			
+			OR b.ve_writer4 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959')
+			</if>
+		</if>
+	</select>
+	
+	<!-- 차량운행실적 합계 -->
+	<select id="select_revenue_total" resultType="HashMap">		
+		<!-- 연료별 -->
+		<if test="section == 1">
+		SELECT
+			'계' AS name,
+			TRUNCATE(SUM(value1), 0) AS value1, TRUNCATE(SUM(value2), 0) AS value2,
+			TRUNCATE(SUM(value3), 0) AS value3, TRUNCATE(SUM(value4), 2) AS value4,
+			TRUNCATE(SUM(value5), 2) AS value5, TRUNCATE(SUM(value6), 2) AS value6
+		FROM
+		(
+			SELECT
+				tb1.fu_name AS name,
+				IFNULL(tb2.value, 0) AS value1, IFNULL(tb3.value, 0) AS value2,
+				IFNULL(tb4.value, 0) AS value3, IFNULL(tb5.value, 0) AS value4,
+				IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / IFNULL(tb4.value, 0), 2), 0) AS value5,
+				IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / ${days}, 2), 0) AS value6
+			FROM
+			(
+				SELECT
+					a.seq AS fu_seq, a.name AS fu_name, a.code AS fu_code
+				FROM fuel a WHERE 1=1
+			)tb1
+			LEFT JOIN
+			(
+				SELECT
+					COUNT(a.ve_seq) AS value, a.ve_fuel
+				FROM vehicle a
+				WHERE 1=1
+					AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY a.ve_fuel
+			)tb2 ON tb1.fu_seq = tb2.ve_fuel
+			LEFT JOIN
+			(
+				SELECT
+					COUNT(a.rc_seq) AS value, b.ve_fuel
+				FROM race a
+				LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+				WHERE 1=1
+					AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY b.ve_fuel
+			)tb3 ON tb1.fu_seq = tb3.ve_fuel
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.rc_after - a.rc_before) AS value,
+					b.ve_fuel
+				FROM race a
+				LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+				WHERE 1=1
+					AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY b.ve_fuel
+			)tb4 ON tb1.fu_seq = tb4.ve_fuel
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.rc_refuel) AS value, b.ve_fuel
+				FROM race a
+				LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+				WHERE 1=1
+					AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY b.ve_fuel
+			)tb5 ON tb1.fu_seq = tb5.ve_fuel
+		)tb		
+		</if>
+		
+		<!-- 설비별 -->
+		<if test="section == 2">
+		SELECT
+			'계' AS name,
+			TRUNCATE(SUM(value1), 0) AS value1, TRUNCATE(SUM(value2), 0) AS value2,
+			TRUNCATE(SUM(value3), 0) AS value3, TRUNCATE(SUM(value4), 2) AS value4,
+			TRUNCATE(SUM(value5), 2) AS value5, TRUNCATE(SUM(value6), 2) AS value6
+		FROM
+		(
+			SELECT
+				tb1.sys_name AS name,
+				IFNULL(tb2.value, 0) AS value1, IFNULL(tb3.value, 0) AS value2,
+				IFNULL(tb4.value, 0) AS value3, IFNULL(tb5.value, 0) AS value4,
+				IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / IFNULL(tb4.value, 0), 2), 0) AS value5,
+				IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / ${days}, 2), 0) AS value6
+			FROM
+			(
+				SELECT
+					a.seq AS sys_seq, a.name AS sys_name, a.code AS sys_code
+				FROM system a WHERE 1=1
+					<if test="none_system"> AND a.seq = 0 </if>
+					<if test="system"> AND a.seq IN <foreach collection="system" item="item" open="(" close=")" separator=","> #{item.sys_seq} </foreach> </if>
+			)tb1
+			LEFT JOIN
+			(
+				SELECT
+					COUNT(a.ve_seq) AS value, a.sys_seq
+				FROM vehicle a
+				WHERE 1=1
+					AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY a.sys_seq
+			)tb2 ON tb1.sys_seq = tb2.sys_seq
+			LEFT JOIN
+			(
+				SELECT
+					COUNT(a.rc_seq) AS value, b.sys_seq
+				FROM race a
+				LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+				WHERE 1=1
+					AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY b.sys_seq
+			)tb3 ON tb1.sys_seq = tb3.sys_seq
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.rc_after - a.rc_before) AS value,
+					b.sys_seq
+				FROM race a
+				LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+				WHERE 1=1
+					AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY b.sys_seq
+			)tb4 ON tb1.sys_seq = tb4.sys_seq
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.rc_refuel) AS value, b.sys_seq
+				FROM race a
+				LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+				WHERE 1=1
+					AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY b.sys_seq
+			)tb5 ON tb1.sys_seq = tb5.sys_seq
+		)tb
+		</if>
+		
+		<!-- 사업단 -->
+		<if test="section == 3">
+		SELECT
+			'계' AS name,
+			TRUNCATE(SUM(value1), 0) AS value1, TRUNCATE(SUM(value2), 0) AS value2,
+			TRUNCATE(SUM(value3), 0) AS value3, TRUNCATE(SUM(value4), 2) AS value4,
+			TRUNCATE(SUM(value5), 2) AS value5, TRUNCATE(SUM(value6), 2) AS value6
+		FROM
+		(
+			SELECT
+				tb1.og_name AS name,
+				IFNULL(tb2.value, 0) AS value1, IFNULL(tb3.value, 0) AS value2,
+				IFNULL(tb4.value, 0) AS value3, IFNULL(tb5.value, 0) AS value4,
+				IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / IFNULL(tb4.value, 0), 2), 0) AS value5,
+				IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / ${days}, 2), 0) AS value6
+			FROM
+			(
+				SELECT
+					a.og_seq, a.og_name, a.og_code
+				FROM organization a WHERE 1=1
+					AND a.og_group = 1 AND a.og_code >= 200000000
+			)tb1
+			LEFT JOIN
+			(
+				SELECT
+					COUNT(a.ve_seq) AS value, a.og_seq
+				FROM vehicle a
+				WHERE 1=1
+					AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY a.og_seq
+			)tb2 ON tb1.og_seq = tb2.og_seq
+			LEFT JOIN
+			(
+				SELECT
+					COUNT(a.rc_seq) AS value, b.og_seq
+				FROM race a
+				LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+				WHERE 1=1
+					AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY b.og_seq
+			)tb3 ON tb1.og_seq = tb3.og_seq
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.rc_after - a.rc_before) AS value,
+					b.og_seq
+				FROM race a
+				LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+				WHERE 1=1
+					AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY b.og_seq
+			)tb4 ON tb1.og_seq = tb4.og_seq
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.rc_refuel) AS value, b.og_seq
+				FROM race a
+				LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+				WHERE 1=1
+					AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+				GROUP BY b.og_seq
+			)tb5 ON tb1.og_seq = tb5.og_seq
+		)tb
+		</if>
+		
+		<!-- 차량통계 -->
+		<if test="section == 4">
+		SELECT
+			'합계' AS ve_number, SUM(a.rc_drive) AS rc_drive, SUM(a.rc_amount) AS rc_amount, 
+		    SUM(a.rc_park) AS rc_park, SUM(a.rc_pass) AS rc_pass, SUM(a.rc_trouble) AS rc_trouble
+		FROM race a
+		LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+		WHERE 1=1
+			AND a.rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			<if test="auth == 1"> AND b.og_seq = #{auth_seq} </if>
+			<if test="auth == 2">
+			AND b.ve_creater = #{auth_seq}
+			
+			OR b.ve_writer1 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			
+			OR b.ve_writer2 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			
+			OR b.ve_writer3 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			
+			OR b.ve_writer4 = #{auth_seq}
+			AND a.rc_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.rc_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			</if>			
+		</if>
+	</select>	
+	
+	<!-- L당 가동거리 -->
+	<select id="select_liter_chart" resultType="HashMap">		
+		<!-- 연료별 -->
+		<if test="section == 1">
+		SELECT
+			tb1.fu_name AS item,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / IFNULL(tb4.value, 0), 2), 0) AS value
+		FROM
+		(
+			SELECT
+				a.seq AS fu_seq, a.name AS fu_name, a.code AS fu_code
+			FROM fuel a WHERE 1=1
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.ve_seq) AS value, a.ve_fuel
+			FROM vehicle a
+			WHERE 1=1
+				AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY a.ve_fuel
+		)tb2 ON tb1.fu_seq = tb2.ve_fuel
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.rc_seq) AS value, b.ve_fuel
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.ve_fuel
+		)tb3 ON tb1.fu_seq = tb3.ve_fuel
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_after - a.rc_before) AS value,
+				b.ve_fuel
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.ve_fuel
+		)tb4 ON tb1.fu_seq = tb4.ve_fuel
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_refuel) AS value, b.ve_fuel
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.ve_fuel
+		)tb5 ON tb1.fu_seq = tb5.ve_fuel
+		ORDER BY tb1.fu_code ASC
+		</if>
+		
+		<!-- 설비별 -->
+		<if test="section == 2">
+		SELECT
+			tb1.sys_name AS item,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / IFNULL(tb4.value, 0), 2), 0) AS value
+		FROM
+		(
+			SELECT
+				a.seq AS sys_seq, a.name AS sys_name, a.code AS sys_code
+			FROM system a WHERE 1=1
+				<if test="none_system"> AND a.seq = 0 </if>
+				<if test="system"> AND a.seq IN <foreach collection="system" item="item" open="(" close=")" separator=","> #{item.sys_seq} </foreach> </if>
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.ve_seq) AS value, a.sys_seq
+			FROM vehicle a
+			WHERE 1=1
+				AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY a.sys_seq
+		)tb2 ON tb1.sys_seq = tb2.sys_seq
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.rc_seq) AS value, b.sys_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.sys_seq
+		)tb3 ON tb1.sys_seq = tb3.sys_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_after - a.rc_before) AS value,
+				b.sys_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.sys_seq
+		)tb4 ON tb1.sys_seq = tb4.sys_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_refuel) AS value, b.sys_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.sys_seq
+		)tb5 ON tb1.sys_seq = tb5.sys_seq
+		ORDER BY tb1.sys_code ASC
+		</if>
+		
+		<!-- 사업단 -->
+		<if test="section == 3">
+		SELECT
+			tb1.og_name AS item,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / IFNULL(tb4.value, 0), 2), 0) AS value
+		FROM
+		(
+			SELECT
+				a.og_seq, a.og_name, a.og_code
+			FROM organization a WHERE 1=1
+				AND a.og_group = 1 AND a.og_code >= 200000000
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.ve_seq) AS value, a.og_seq
+			FROM vehicle a
+			WHERE 1=1
+				AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY a.og_seq
+		)tb2 ON tb1.og_seq = tb2.og_seq
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.rc_seq) AS value, b.og_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.og_seq
+		)tb3 ON tb1.og_seq = tb3.og_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_after - a.rc_before) AS value,
+				b.og_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.og_seq
+		)tb4 ON tb1.og_seq = tb4.og_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_refuel) AS value, b.og_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.og_seq
+		)tb5 ON tb1.og_seq = tb5.og_seq
+		ORDER BY tb1.og_code ASC
+		</if>
+	</select>
+	
+	<!-- 일평균 이동거리 -->
+	<select id="select_day_chart" resultType="HashMap">		
+		<!-- 연료별 -->
+		<if test="section == 1">
+		SELECT
+			tb1.fu_name AS item,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / ${days}, 2), 0) AS value
+		FROM
+		(
+			SELECT
+				a.seq AS fu_seq, a.name AS fu_name, a.code AS fu_code
+			FROM fuel a WHERE 1=1
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.ve_seq) AS value, a.ve_fuel
+			FROM vehicle a
+			WHERE 1=1
+				AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY a.ve_fuel
+		)tb2 ON tb1.fu_seq = tb2.ve_fuel
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.rc_seq) AS value, b.ve_fuel
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.ve_fuel
+		)tb3 ON tb1.fu_seq = tb3.ve_fuel
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_after - a.rc_before) AS value,
+				b.ve_fuel
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.ve_fuel
+		)tb4 ON tb1.fu_seq = tb4.ve_fuel
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_refuel) AS value, b.ve_fuel
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.ve_fuel
+		)tb5 ON tb1.fu_seq = tb5.ve_fuel
+		ORDER BY tb1.fu_code ASC
+		</if>
+		
+		<!-- 설비별 -->
+		<if test="section == 2">
+		SELECT
+			tb1.sys_name AS item,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / ${days}, 2), 0) AS value
+		FROM
+		(
+			SELECT
+				a.seq AS sys_seq, a.name AS sys_name, a.code AS sys_code
+			FROM system a WHERE 1=1
+				<if test="none_system"> AND a.seq = 0 </if>
+				<if test="system"> AND a.seq IN <foreach collection="system" item="item" open="(" close=")" separator=","> #{item.sys_seq} </foreach> </if>
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.ve_seq) AS value, a.sys_seq
+			FROM vehicle a
+			WHERE 1=1
+				AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY a.sys_seq
+		)tb2 ON tb1.sys_seq = tb2.sys_seq
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.rc_seq) AS value, b.sys_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.sys_seq
+		)tb3 ON tb1.sys_seq = tb3.sys_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_after - a.rc_before) AS value,
+				b.sys_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.sys_seq
+		)tb4 ON tb1.sys_seq = tb4.sys_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_refuel) AS value, b.sys_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.sys_seq
+		)tb5 ON tb1.sys_seq = tb5.sys_seq
+		ORDER BY tb1.sys_code ASC
+		</if>
+		
+		<!-- 사업단 -->
+		<if test="section == 3">
+		SELECT
+			tb1.og_name AS item,
+			IFNULL(TRUNCATE(IFNULL(tb5.value, 0) / ${days}, 2), 0) AS value
+		FROM
+		(
+			SELECT
+				a.og_seq, a.og_name, a.og_code
+			FROM organization a WHERE 1=1
+				AND a.og_group = 1 AND a.og_code >= 200000000
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.ve_seq) AS value, a.og_seq
+			FROM vehicle a
+			WHERE 1=1
+				AND LEFT(a.check_date, 6) &lt;= DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY a.og_seq
+		)tb2 ON tb1.og_seq = tb2.og_seq
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.rc_seq) AS value, b.og_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.og_seq
+		)tb3 ON tb1.og_seq = tb3.og_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_after - a.rc_before) AS value,
+				b.og_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.og_seq
+		)tb4 ON tb1.og_seq = tb4.og_seq
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.rc_refuel) AS value, b.og_seq
+			FROM race a
+			LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+			WHERE 1=1
+				AND LEFT(a.rc_date, 6) = DATE_FORMAT(#{date}, '%Y%m')
+			GROUP BY b.og_seq
+		)tb5 ON tb1.og_seq = tb5.og_seq
+		ORDER BY tb1.og_code ASC
+		</if>
+	</select>
+	
+	<!-- 운행일지 리스트 엑셀파일 -->
+	<select id="drive_list_excel" resultType="HashMap">
+	SELECT
+	 		a.rc_seq AS seq
+	 		, a.rc_date
+	 		, CONCAT(FORMAT(rc_before,0),'Km') AS rc_before
+	 		, CONCAT(FORMAT(rc_after,0),'Km') AS rc_after
+	 		, CASE WHEN d.og_name IS NULL THEN '정보없음' ELSE d.og_name END AS group_name
+	 		, CASE WHEN e.og_name IS NULL THEN '정보없음' ELSE e.og_name END AS team_name
+	 		, b.ve_number
+	 		, CONCAT(FORMAT(rc_amount,0),'원') AS rc_amount
+	 		, CONCAT(FORMAT(rc_refuel,0),'L') AS rc_refuel
+	 		, CONCAT(FORMAT(rc_trouble,0),'원') AS rc_trouble
+	 		, CONCAT(FORMAT(rc_pass,0),'원') AS rc_pass
+	 		, CONCAT(FORMAT(rc_park,0),'원') AS rc_park
+	 	FROM race a 
+	 	LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq 
+	 	LEFT JOIN personnel c ON a.per_seq = c.per_seq
+	 	LEFT JOIN organization d ON c.per_organize = d.og_seq
+	 	LEFT JOIN organization e ON c.per_team = e.og_seq
+	 	where 1=1
+	 	<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 운행일지 팝업 엑셀파일 -->
+	<select id="drive_detail_excel" resultType="HashMap">
+	SELECT 
+			a.rc_seq AS seq
+			, a.ve_seq
+			, c.ve_number
+			, a.per_seq
+			, b.per_name
+			, date_format(rc_date,'%Y-%m-%d') AS rc_date
+			, CONCAT(FORMAT(rc_drive,0),'Km') AS rc_drive
+			, CONCAT(FORMAT(rc_before,0),'Km') AS rc_before
+			, CONCAT(FORMAT(rc_after,0),'Km') AS rc_after
+			, CONCAT(rc_operate,'분') AS rc_operate
+			, a.rc_area
+			, CONCAT(FORMAT(rc_pass,0),'원') AS rc_pass
+			, CONCAT(FORMAT(rc_park,0),'원') AS rc_park
+			, CONCAT(FORMAT(rc_refuel,0),'L') AS rc_refuel
+			, CONCAT(FORMAT(rc_amount,0),'원') AS rc_amount
+			, CONCAT(FORMAT(rc_price,0),'원') AS rc_price
+			, CASE WHEN rc_handle=1 THEN '없음' WHEN rc_handle=2 THEN '현금' WHEN rc_handle=3 THEN '보험' END AS rc_handle
+			, CONCAT(FORMAT(rc_trouble,0),'원') AS rc_trouble
+			, a.rc_part
+		FROM race a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		LEFT JOIN vehicle c ON a.ve_seq = c.ve_seq
+		WHERE 1=1
+			AND a.rc_seq = #{seq}
+	</select>
+	
+	<!-- 운행일지 기록 가져오기 엑셀 -->
+	<select id="drive_history_excel" resultType="HashMap">
+	SELECT
+			rh_seq
+			, rc_seq
+			, rh_depart
+			, rh_arrival
+			, CONCAT(FORMAT(rh_distance,0),'Km') AS rh_distance
+			, CONCAT(rh_minute,'분') AS rh_minute
+			, CONCAT(FORMAT(rh_pass,0),'원') AS rh_pass
+			, CONCAT(FORMAT(rh_park,0),'원') AS rh_park
+			, rh_driver
+			, rh_note
+		FROM race_history WHERE 1=1
+			AND rc_seq = #{seq}
+		ORDER BY rh_seq ASC
+	</select>
+	
+	<!-- 차량관리 리스트 엑셀 -->
+	<select id="select_vehicle_list_excel" resultType="HashMap">
+	SELECT
+			a.ve_seq AS seq
+			, a.og_seq
+			, b.og_name AS group_name
+			, a.ve_check
+			, c.og_name AS check_name
+			, CASE
+				WHEN ve_model=1 THEN '승용'
+				WHEN ve_model=2 THEN '승합'
+				WHEN ve_model=3 THEN '화물'
+				WHEN ve_model=4 THEN '기타'
+				END 
+				AS ve_model
+			, a.ve_name
+			, a.ve_number
+			, date_format(a.update_date,'%Y-%m-%d') AS update_date
+			, CONCAT(ve_year,'년식') AS ve_year
+			, CASE
+				WHEN a.ve_type=1 THEN '법인'
+				WHEN a.ve_type=2 THEN '임차'
+				WHEN a.ve_type=3 THEN '동원'
+				END AS ve_type 
+			, a.ve_fuel
+			, a.ve_drive
+			, CASE 
+		    	WHEN DATE_FORMAT(NOW(), '%Y%m%d235959') >= ve_expiry THEN '차량검사'
+		    	ELSE '완료'
+		    END AS ve_yn
+		FROM vehicle a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		LEFT JOIN organization c ON a.ve_check = c.og_seq
+		LEFT JOIN fuel d ON a.ve_fuel = d.seq
+		WHERE 1=1
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 차량관리 기본정보 엑셀 -->
+	<select id="select_vehicle_excel" resultType="HashMap">
+	SELECT
+			a.ve_seq AS seq
+			, a.og_seq
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=a.og_seq) AS og_seq
+			, a.ve_number
+			, a.ve_name
+			, CASE
+				WHEN ve_model=1 THEN '승용'
+				WHEN ve_model=2 THEN '승합'
+				WHEN ve_model=3 THEN '화물'
+				WHEN ve_model=4 THEN '기타'
+				END 
+				AS ve_model
+			, CONCAT(a.ve_year,'년식') AS ve_year
+			, a.ve_identify
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=a.ve_check) AS ve_check
+			, date_format(a.check_date,'%Y-%m-%d') AS check_date
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.ve_delegate) AS ve_delegate
+			, date_format(a.delegate_date,'%Y-%m-%d') AS delegate_date
+			, date_format(a.ve_expiry,'%Y-%m-%d') AS ve_expiry
+			,  CONCAT(FORMAT(a.ve_drive,0),'Km') AS ve_drive
+			, (SELECT tb.name FROM system tb WHERE 1=1 AND tb.seq=a.sys_seq) AS sys_seq
+			, a.ve_project
+			, CASE WHEN ve_fuel=1 THEN '경유' WHEN ve_fuel=2 THEN '휘발유' WHEN ve_fuel=3
+			  THEN '석유' WHEN ve_fuel=4 THEN '난방유' WHEN ve_fuel=5 THEN 'LPG' WHEN ve_fuel=6
+			  THEN '기타' WHEN ve_fuel=7 THEN '전기' END as ve_fuel
+			, date_format(a.ve_buy,'%Y-%m-%d') AS ve_buy
+			, CASE
+				WHEN a.ve_type=1 THEN '법인'
+				WHEN a.ve_type=2 THEN '임차'
+				WHEN a.ve_type=3 THEN '동원'
+				END AS ve_type 
+			, a.ve_use
+			, a.ve_free
+			, a.ve_pass
+			, a.ve_urgent
+			, date_format(a.ve_appoint,'%Y-%m-%d') AS ve_appoint
+			, CASE WHEN ve_lightbar=1 THEN '유'
+			  ELSE '무' END AS ve_lightbar
+			, a.ve_police
+			, CASE WHEN ve_recorder=1 THEN '유'
+			  ELSE '무' END AS ve_recorder
+			, a.recorder_num
+			, CASE WHEN ve_gps=1 THEN '유'
+			  ELSE '무' END AS ve_gps
+			, a.gps_num
+			, CASE WHEN ve_lift=1 THEN '유'
+			  ELSE '무' END AS ve_lift
+			, CASE WHEN ve_status=1 THEN '가용'
+			  ELSE '불용' END AS ve_status
+			, a.ve_note
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.ve_creater) AS ve_creater
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.ve_writer1) AS ve_writer1
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.ve_writer1) AS ve_writer2
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.ve_writer1) AS ve_writer3
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.ve_writer1) AS ve_writer4
+		FROM vehicle a
+		WHERE 1=1
+			AND a.ve_seq = #{seq}
+	</select>
+	
+	<!-- 차량관리 기본정보 로그 가져오기 엑셀 -->
+	<select id="select_vehicle_log_excel" resultType="HashMap">
+		SELECT
+			vl_seq
+			, ve_seq
+			, vl_divide
+			, vl_change
+			, CASE 
+				 WHEN vl_divide=1 THEN '이관'
+				 WHEN vl_divide=2 THEN '수임'
+			 	ELSE '불용' END AS vl_divide
+			, date_format(vl_update,'%Y-%m-%d') AS vl_update
+			, vl_basis
+		FROM vehicle_log WHERE 1=1
+			AND ve_seq = #{seq}
+	</select>
+	
+	<!-- 사고 리스트 가져오기 엑셀 -->
+	<select id="accident_list_excel" resultType="HashMap">
+	SELECT
+			a.ac_seq AS seq
+			, a.per_organize
+			, b.og_name AS group_name
+			, a.per_team
+			, c.og_name AS team_name
+			, d.ve_name
+			, d.ve_number
+			, CASE
+				WHEN ac_blame=1 THEN '지사과실'
+				WHEN ac_blame=2 THEN '상대과실'
+				ELSE '쌍방과실' END AS ac_blame
+			, a.ac_date
+			, a.ac_place
+		FROM accident a
+		LEFT JOIN organization b ON a.per_organize = b.og_seq
+		LEFT JOIN organization c ON a.per_team = c.og_seq
+		LEFT JOIN vehicle d ON a.ve_seq = d.ve_seq
+		WHERE 1=1
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 사고일지 기본정보 엑셀 -->
+	<select id="accident_detail_excel" resultType="HashMap">
+	SELECT 
+			a.ac_seq AS seq
+			, (SELECT tb.ve_number FROM vehicle tb WHERE 1=1 AND tb.ve_seq=a.ve_seq) AS ve_seq
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.per_seq) AS per_seq
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=a.per_organize) AS per_organize
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=a.per_team) AS per_team
+			, date_format(ac_date,'%Y-%m-%d') AS ac_date
+			, a.ac_weather
+			, a.ac_place
+			, a.ac_model
+			, a.ac_car
+			, a.ac_phone
+			, a.ac_summary
+			, CASE
+				WHEN ac_blame=1 THEN '지사과실'
+				WHEN ac_blame=2 THEN '상대과실'
+				ELSE '쌍방과실' END AS ac_blame
+			, date_format(a.ac_report,'%Y-%m-%d') AS ac_report
+			, a.ac_our1
+			, a.ac_our2
+			, a.ac_match1
+			, a.ac_match2
+			, a.ac_term
+			, a.ac_etc
+		FROM accident a WHERE 1=1
+		AND a.ac_seq = #{seq}
+	</select>
+</mapper>

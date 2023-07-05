@@ -1,0 +1,1114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.PartMapper">
+
+	<!-- 리스트 정렬 -->
+	<sql id="order"> 
+	<if test="column == null or column == ''"> ORDER BY seq DESC </if>
+	<if test="column">ORDER BY ${column} ${order} </if>	
+	</sql>
+	
+	<!-- 페이징 -->
+	<sql id="paging"> LIMIT #{start_num}, #{row_num} </sql>
+	
+	<!-- 검색용 사업단 시퀀스 가져오기 -->
+	<select id="select_organize_seq" resultType="HashMap">
+		SELECT
+			og_seq
+		FROM organization WHERE 1=1
+			AND og_group = 1
+			AND og_name LIKE '%${og_name}%'
+	</select>
+	
+	<!-- 검색용 부품 시퀀스 가져오기 -->
+	<select id="select_system_seq" resultType="HashMap">
+		SELECT
+			seq AS sys_seq
+		FROM system WHERE 1=1
+			AND name LIKE '%${sys_name}%'
+	</select>
+	
+	<!-- 검색용 예산과목 시퀀스 가져오기 -->
+	<select id="select_budget_seq" resultType="HashMap">
+		SELECT
+			seq AS bg_seq		
+		FROM budget WHERE 1=1
+			AND name LIKE '%${bg_name}%'
+	</select>
+	
+	<!-- 부품명 검색 후 수불관리 시퀀스 가져오기 -->
+	<select id="select_payment_seq" resultType="HashMap">
+		SELECT
+			a.pm_seq
+		FROM order_request a
+		LEFT JOIN part b ON a.pt_seq = b.pt_seq
+		WHERE 1=1
+			AND b.pt_name LIKE '%${pt_name}%'
+	</select>
+	
+	<!-- 창고 관리부서 검색 -->
+	<select id="select_storage_org" resultType="HashMap">
+		SELECT
+			DISTINCT a.sr_seq
+		FROM storage_group a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		WHERE 1=1
+			AND b.og_name LIKE '%${sr_division}%'
+	</select>
+
+	<!-- 부품관리 리스트 개수 가져오기 -->
+	<select id="select_part_cnt" resultType="int">
+		SELECT
+			COUNT(a.pt_seq)
+		FROM part a
+		LEFT JOIN device_standard1 b ON a.ds_seq = b.ds_seq
+		LEFT JOIN account c ON a.act_device = c.act_seq
+		LEFT JOIN personnel d ON a.writer = d.per_seq
+		WHERE 1=1
+			<if test="pt_name != null and pt_name != ''"> AND a.pt_name LIKE '%${pt_name}%' </if>			
+			<if test="sys_name != null and sys_name != ''"> AND a.sys_seq = #{sys_name} </if>
+			<if test="bg_seq != null and bg_seq != ''"> AND a.bg_seq = #{bg_seq} </if>
+			<if test="ds_name != null and ds_name != ''"> AND b.ds_seq = #{ds_name} </if>
+			<if test="pt_spec != null and pt_spec != ''"> AND a.pt_spec LIKE '%${pt_spec}%' </if>
+			<if test="auth == 1"> AND d.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+	</select>
+	
+	<!-- 부품관리 리스트 가져오기  -->
+	<select id="select_part_list" resultType="HashMap">
+		SELECT
+			a.pt_seq AS seq, a.pt_code, a.bg_seq, a.sys_seq, b.ds_name,
+			a.pt_name, a.pt_spec, a.act_device AS act_company, a.pt_operate
+		FROM part a
+		LEFT JOIN device_standard1 b ON a.ds_seq = b.ds_seq
+		LEFT JOIN account c ON a.act_device = c.act_seq
+		LEFT JOIN personnel d ON a.writer = d.per_seq
+		WHERE 1=1
+			<if test="pt_name != null and pt_name != ''"> AND a.pt_name LIKE '%${pt_name}%' </if>			
+			<if test="sys_name != null and sys_name != ''"> AND a.sys_seq = #{sys_name} </if>
+			<if test="bg_seq != null and bg_seq != ''"> AND a.bg_seq = #{bg_seq} </if>
+			<if test="ds_name != null and ds_name != ''"> AND b.ds_seq = #{ds_name} </if>
+			<if test="pt_spec != null and pt_spec != ''"> AND a.pt_spec LIKE '%${pt_spec}%' </if>
+			<if test="auth == 1"> AND d.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 부품관리 추가/수정 -->
+	<insert id="insert_part">
+		INSERT INTO part
+		(
+			pt_seq
+			<if test="sys_seq != null and sys_seq != ''">, sys_seq</if>
+			<if test="ds_seq != null and ds_seq != ''">, ds_seq</if>
+			<if test="pt_operate != null and pt_operate != ''">, pt_operate</if>
+			<if test="act_device != null and act_device != ''">, act_device</if>
+			<if test="pt_years != null and pt_years != ''">, pt_years</if>
+			<if test="pt_code != null and pt_code != ''">, pt_code</if>
+			<if test="bg_seq != null and bg_seq != ''">, bg_seq</if>
+			<if test="pt_name != null and pt_name != ''">, pt_name</if>
+			<if test="pt_spec != null and pt_spec != ''">, pt_spec</if>
+			<if test="act_unit != null and act_unit != ''">, act_unit</if>
+			<if test="pt_unit != null and pt_unit != ''">, pt_unit</if>
+			<if test="pt_main != null and pt_main != ''">, pt_main</if>
+			<if test="pt_defect != null and pt_defect != ''">, pt_defect</if>
+			<if test="pt_sn != null and pt_sn != ''">, pt_sn</if>
+			<if test="pt_part != null and pt_part != ''">, pt_part</if>
+			<if test="pt_contract != null and pt_contract != ''">, pt_contract</if>
+			<if test="pt_test != null and pt_test != ''">, pt_test</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="sys_seq != null and sys_seq != ''">, #{sys_seq}</if>
+			<if test="ds_seq != null and ds_seq != ''">, #{ds_seq}</if>
+			<if test="pt_operate != null and pt_operate != ''">, #{pt_operate}</if>
+			<if test="act_device != null and act_device != ''">, #{act_device}</if>
+			<if test="pt_years != null and pt_years != ''">, #{pt_years}</if>
+			<if test="pt_code != null and pt_code != ''">, #{pt_code}</if>
+			<if test="bg_seq != null and bg_seq != ''">, #{bg_seq}</if>
+			<if test="pt_name != null and pt_name != ''">, #{pt_name}</if>
+			<if test="pt_spec != null and pt_spec != ''">, #{pt_spec}</if>
+			<if test="act_unit != null and act_unit != ''">, #{act_unit}</if>
+			<if test="pt_unit != null and pt_unit != ''">, #{pt_unit}</if>
+			<if test="pt_main != null and pt_main != ''">, #{pt_main}</if>
+			<if test="pt_defect != null and pt_defect != ''">, #{pt_defect}</if>
+			<if test="pt_sn != null and pt_sn != ''">, #{pt_sn}</if>
+			<if test="pt_part != null and pt_part != ''">, #{pt_part}</if>
+			<if test="pt_contract != null and pt_contract != ''">, #{pt_contract}</if>
+			<if test="pt_test != null and pt_test != ''">, #{pt_test}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>	
+		)
+		ON DUPLICATE KEY UPDATE
+			pt_seq = VALUES(pt_seq)
+			<if test="sys_seq != null and sys_seq != ''">, sys_seq = VALUES(sys_seq)</if>
+			<if test="ds_seq != null and ds_seq != ''">, ds_seq = VALUES(ds_seq)</if>
+			<if test="pt_operate != null and pt_operate != ''">, pt_operate = VALUES(pt_operate)</if>
+			<if test="act_device != null and act_device != ''">, act_device = VALUES(act_device)</if>
+			<if test="pt_years != null and pt_years != ''">, pt_years = VALUES(pt_years)</if>
+			<if test="pt_code != null and pt_code != ''">, pt_code = VALUES(pt_code)</if>
+			<if test="bg_seq != null and bg_seq != ''">, bg_seq = VALUES(bg_seq)</if>
+			<if test="pt_name != null and pt_name != ''">, pt_name = VALUES(pt_name)</if>
+			<if test="pt_spec != null and pt_spec != ''">, pt_spec = VALUES(pt_spec)</if>
+			<if test="act_unit != null and act_unit != ''">, act_unit = VALUES(act_unit)</if>
+			<if test="pt_unit != null and pt_unit != ''">, pt_unit = VALUES(pt_unit)</if>
+			<if test="pt_main != null and pt_main != ''">, pt_main = VALUES(pt_main)</if>
+			<if test="pt_defect != null and pt_defect != ''">, pt_defect = VALUES(pt_defect)</if>
+			<if test="pt_sn != null and pt_sn != ''">, pt_sn = VALUES(pt_sn)</if>
+			<if test="pt_part != null and pt_part != ''">, pt_part = VALUES(pt_part)</if>
+			<if test="pt_contract != null and pt_contract != ''">, pt_contract = VALUES(pt_contract)</if>
+			<if test="pt_test != null and pt_test != ''">, pt_test = VALUES(pt_test)</if>
+			, update_date = VALUES(update_date)	
+			, writer = VALUES(writer)
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(pt_seq) FROM part 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND pt_seq = #{seq} </if>
+		</selectKey>		
+	</insert>
+	
+	<!-- 추가스펙 삭제 -->
+	<delete id="delete_spec">
+		DELETE FROM spec WHERE 1=1
+		AND pt_seq = #{seq}
+		<if test="sp_seq"> AND sp_seq NOT IN <foreach collection="multi.sp_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 추가스펙 추가/수정 -->
+	<insert id="insert_spec">
+		INSERT INTO spec
+		(
+			sp_seq
+			, pt_seq
+			, sp_name
+			, sp_value
+			, sp_unit
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.sp_seq" index="index" separator=",">
+		(
+			IF(${multi.sp_seq[index]} = 0, NULL, ${multi.sp_seq[index]})
+			, ${seq}
+			, '${multi.sp_name[index]}'
+			, ${multi.sp_value[index]}
+			, ${multi.sp_unit[index]}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')	
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			sp_seq = VALUES(sp_seq)
+			, pt_seq = VALUES(pt_seq)
+			, sp_name = VALUES(sp_name)
+			, sp_value = VALUES(sp_value)
+			, sp_unit = VALUES(sp_unit)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 부품관리 상세정보 가져오기 -->
+	<select id="select_part" resultType="HashMap">
+		SELECT
+			a.pt_seq AS seq, a.sys_seq, a.ds_seq, b.ds_name as ds_seq_name, a.pt_operate, a.act_device, 
+			a.pt_years, a.pt_code, a.bg_seq, a.pt_name, a.pt_spec, 
+			a.act_unit, a.pt_unit, a.pt_main, a.pt_defect, a.pt_sn, 
+			a.pt_part, a.pt_contract, a.pt_test
+		FROM part a
+		LEFT JOIN device_standard1 b
+			ON a.ds_seq = b.ds_seq
+		WHERE 1=1
+			AND a.pt_seq = #{seq}
+	</select>
+	
+	<!-- 부품관리 추가스펙 가져오기 -->
+	<select id="select_spec" resultType="HashMap">
+		SELECT
+			sp_seq, pt_seq, sp_name, sp_value, sp_unit		
+		FROM spec WHERE 1=1
+			AND pt_seq = #{seq}
+		ORDER BY sp_seq ASC
+	</select>
+	
+	<!-- 부품관리 사용여부 확인하기 -->
+	<select id="select_part_status" resultType="int">
+		<if test="section == 1">
+		SELECT 
+			CASE COUNT(or_seq)
+				WHEN 0 THEN 1001
+				ELSE 2001
+			END
+		FROM order_request WHERE 1=1
+			AND pt_seq = #{seq}
+		</if>
+		
+		<if test="section == 2">
+		SELECT 
+			CASE COUNT(bs_seq)
+				WHEN 0 THEN 1001
+				ELSE 2001
+			END
+		FROM breakdown_spare WHERE 1=1
+			AND pt_seq = #{seq}
+		</if>
+		
+		<if test="section == 3">
+		SELECT 
+			CASE COUNT(bs_seq)
+				WHEN 0 THEN 1001
+				ELSE 2001
+			END
+		FROM breakdown_storage WHERE 1=1
+			AND pt_seq = #{seq}
+		</if>
+	</select>
+	
+	<!-- 부품관리 삭제하기 -->
+	<delete id="delete_part">
+		<if test="section == 1">
+		DELETE FROM spec WHERE 1=1 AND pt_seq = #{seq}
+		</if>
+		
+		<if test="section == 2">
+		DELETE FROM part WHERE 1=1 AND pt_seq = #{seq}
+		</if>
+	</delete>
+	
+	<!-- 수불관리 리스트 개수 가져오기 -->
+	<select id="select_payment_cnt" resultType="int">
+		SELECT
+			COUNT(a.pm_seq)	
+		FROM payment a
+		LEFT JOIN 
+		(
+			SELECT
+				tb1.pm_seq, GROUP_CONCAT(tb2.pt_name) AS pt_name
+			FROM order_request tb1
+			LEFT JOIN part tb2 ON tb1.pt_seq = tb2.pt_seq
+			WHERE 1=1
+			GROUP BY tb1.pm_seq
+		)b ON a.pm_seq = b.pm_seq
+		LEFT JOIN organization c ON a.og_seq = c.og_seq
+		LEFT JOIN personnel d ON a.per_seq = d.per_seq
+		LEFT JOIN storage e ON a.pm_storage = e.sr_seq
+		LEFT JOIN account f ON a.act_seq = f.act_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.pm_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.pm_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>			
+			<if test="pt_name != null and pt_name != ''"> AND b.pt_name LIKE '%${pt_name}%' </if>			
+			<if test="pm_contract != null and pm_contract != ''"> AND a.pm_contract LIKE '%${pm_contract}%' </if>
+			<if test="per_name != null and per_name != ''"> AND d.per_name LIKE '%${per_name}%' </if>
+			<if test="pm_seq != null and pm_seq != ''"> AND a.pm_seq LIKE '%${pm_seq}%' </if>
+			<if test="pm_storage != null and pm_storage != ''"> AND a.pm_storage = #{pm_storage} </if>
+			<if test="auth == 1"> AND IF(c.og_level = 3, a.og_seq = #{auth_seq}, c.og_pcode = #{auth_seq}) </if>
+			<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>		
+	</select>
+	
+	<!-- 수불관리 리스트 가져오기 -->
+	<select id="select_payment_list" resultType="HashMap">
+		SELECT
+			a.pm_seq AS seq, a.pm_date, a.pm_storage, e.sr_name,
+			a.act_seq, f.act_company, a.pm_contract, a.per_seq,
+			d.per_name, b.pt_name,
+			CASE c.og_level
+				WHEN 3 THEN a.og_seq
+				ELSE c.og_pcode
+			END AS og_seq		
+		FROM payment a
+		LEFT JOIN 
+		(
+			SELECT
+				tb1.pm_seq, GROUP_CONCAT(tb2.pt_name) AS pt_name
+			FROM order_request tb1
+			LEFT JOIN part tb2 ON tb1.pt_seq = tb2.pt_seq
+			WHERE 1=1
+			GROUP BY tb1.pm_seq
+		)b ON a.pm_seq = b.pm_seq
+		LEFT JOIN organization c ON a.og_seq = c.og_seq
+		LEFT JOIN personnel d ON a.per_seq = d.per_seq
+		LEFT JOIN storage e ON a.pm_storage = e.sr_seq
+		LEFT JOIN account f ON a.act_seq = f.act_seq		
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.pm_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.pm_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>			
+			<if test="pt_name != null and pt_name != ''"> AND b.pt_name LIKE '%${pt_name}%' </if>			
+			<if test="pm_contract != null and pm_contract != ''"> AND a.pm_contract LIKE '%${pm_contract}%' </if>
+			<if test="per_name != null and per_name != ''"> AND d.per_name LIKE '%${per_name}%' </if>
+			<if test="pm_seq != null and pm_seq != ''"> AND a.pm_seq LIKE '%${pm_seq}%' </if>
+			<if test="pm_storage != null and pm_storage != ''"> AND a.pm_storage = #{pm_storage} </if>
+			<if test="auth == 1"> AND IF(c.og_level = 3, a.og_seq = #{auth_seq}, c.og_pcode = #{auth_seq}) </if>
+			<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 수불관리 추가/수정 -->
+	<insert id="insert_payment">
+		INSERT INTO payment
+		(
+			pm_seq
+			<if test="pm_contract != null and pm_contract != ''">, pm_contract</if>
+			<if test="pm_letter != null and pm_letter != ''">, pm_letter</if>
+			<if test="og_seq != null and og_seq != ''">, og_seq</if>
+			<if test="act_seq != null and act_seq != ''">, act_seq</if>
+			<if test="pm_date != null and pm_date != ''">, pm_date</if>
+			<if test="pm_place != null and pm_place != ''">, pm_place</if>
+			<if test="pm_delivery != null and pm_delivery != ''">, pm_delivery</if>
+			<if test="pm_storage != null and pm_storage != ''">, pm_storage</if>
+			<if test="per_seq != null and per_seq != ''">, per_seq</if>
+			<if test="pm_division != null and pm_division != ''">, pm_division</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES 
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="pm_contract != null and pm_contract != ''">, #{pm_contract}</if>
+			<if test="pm_letter != null and pm_letter != ''">, #{pm_letter}</if>
+			<if test="og_seq != null and og_seq != ''">, #{og_seq}</if>
+			<if test="act_seq != null and act_seq != ''">, #{act_seq}</if>
+			<if test="pm_date != null and pm_date != ''">, DATE_FORMAT(#{pm_date}, '%Y%m%d%H%i%s')</if>
+			<if test="pm_place != null and pm_place != ''">, #{pm_place}</if>
+			<if test="pm_delivery != null and pm_delivery != ''">, DATE_FORMAT(#{pm_delivery}, '%Y%m%d%H%i%s')</if>
+			<if test="pm_storage != null and pm_storage != ''">, #{pm_storage}</if>
+			<if test="per_seq != null and per_seq != ''">, #{per_seq}</if>
+			<if test="pm_division != null and pm_division != ''">, #{pm_division}</if>			
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			pm_seq = VALUES(pm_seq)
+			<if test="pm_contract != null and pm_contract != ''">, pm_contract = VALUES(pm_contract)</if>
+			<if test="pm_letter != null and pm_letter != ''">, pm_letter = VALUES(pm_letter)</if>
+			<if test="og_seq != null and og_seq != ''">, og_seq = VALUES(og_seq)</if>
+			<if test="act_seq != null and act_seq != ''">, act_seq = VALUES(act_seq)</if>
+			<if test="pm_date != null and pm_date != ''">, pm_date = VALUES(pm_date)</if>
+			<if test="pm_place != null and pm_place != ''">, pm_place = VALUES(pm_place)</if>
+			<if test="pm_delivery != null and pm_delivery != ''">, pm_delivery = VALUES(pm_delivery)</if>
+			<if test="pm_storage != null and pm_storage != ''">, pm_storage = VALUES(pm_storage)</if>
+			<if test="per_seq != null and per_seq != ''">, per_seq = VALUES(per_seq)</if>
+			<if test="pm_division != null and pm_division != ''">, pm_division = VALUES(pm_division)</if>	
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(pm_seq) FROM payment 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND pm_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 발주요청 시퀀스 가져오기 -->
+	<select id="select_order_seq" resultType="HashMap">
+		SELECT or_seq
+		FROM order_request WHERE 1=1
+			AND pm_seq = #{seq}
+			<if test="or_seq"> AND or_seq NOT IN <foreach collection="multi.or_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</select>
+	
+	<!-- 수불관리 삭제 -->
+	<delete id="delete_payment">
+		DELETE FROM payment WHERE 1=1 AND pm_seq = #{seq}
+	</delete>
+	
+	<!-- 발주요청 삭제 -->
+	<delete id="delete_order_request">
+		<!-- 발주기록 -->
+		<if test="section == 1">
+		DELETE FROM order_log WHERE 1=1 AND or_seq IN <foreach collection="order" item="item" open="(" separator="," close=")"> #{item.or_seq} </foreach>
+		</if>
+		
+		<!-- 발주요청 -->
+		<if test="section == 2">
+		DELETE FROM order_request WHERE 1=1
+		AND pm_seq = #{seq}
+		<if test="or_seq"> AND or_seq NOT IN <foreach collection="multi.or_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+		</if>
+	</delete>
+	
+	<!-- 발주요청 추가/수정 -->
+	<insert id="insert_order_request">
+		INSERT INTO order_request
+		(
+			or_seq
+			, pm_seq
+			, pt_seq
+			, or_from
+			, or_buy
+			, or_assign
+			, or_total
+			, or_price
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.or_seq" index="index" separator=",">
+		(
+			IF(${multi.or_seq[index]} = 0, NULL, ${multi.or_seq[index]})
+			, ${seq}
+			, IF(${multi.pt_seq[index]} = 0, NULL, ${multi.pt_seq[index]})
+			, IF(${multi.or_from[index]} = 0, NULL, ${multi.or_from[index]})
+			, ${multi.or_buy[index]}
+			, ${multi.or_assign[index]}
+			, IF(${multi.or_assign[index]} &lt;= ${multi.or_buy[index]}, ${multi.or_buy[index]} - ${multi.or_assign[index]}, ${multi.or_assign[index]})
+			, ${multi.or_price[index]}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')	
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			or_seq = VALUES(or_seq)
+			, pm_seq = VALUES(pm_seq)
+			, pt_seq = VALUES(pt_seq)			
+			, or_from = VALUES(or_from)			
+			, or_buy = VALUES(or_buy)
+			, or_assign = VALUES(or_assign)
+			, or_total = VALUES(or_total)
+			, or_price = VALUES(or_price)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 수불관리 상세정보 가져오기 -->
+	<select id="select_payment" resultType="HashMap">
+		SELECT
+			a.pm_seq AS seq, a.pm_division, a.pm_contract, a.pm_letter, a.og_seq, b.og_name as og_seq_name, 
+			a.act_seq, c.act_company as act_seq_name, a.pm_date, a.pm_place, d.sr_name as pm_place_name,
+			a.pm_delivery, a.pm_storage, e.sr_name as pm_storage_name, a.per_seq, f.per_name as per_seq_name
+		FROM payment a
+		LEFT JOIN organization b
+			ON a.og_seq = b.og_seq
+		LEFT JOIN account c
+			ON a.act_seq = c.act_seq
+		LEFT JOIN storage d
+			ON a.pm_place = d.sr_seq
+		LEFT JOIN storage e
+			ON a.pm_storage = e.sr_seq
+		LEFT JOIN personnel f
+			ON a.per_seq = f.per_seq
+		WHERE 1=1
+			AND pm_seq = #{seq}
+	</select>
+	
+	<!-- 발주요청 정보 가져오기 -->
+	<select id="select_order_request" resultType="HashMap">
+		SELECT
+			a.or_seq, a.pm_seq, a.pt_seq, b.pt_name, a.or_buy, a.or_assign, a.or_price
+		FROM order_request a 
+		LEFT JOIN part b
+			ON a.pt_seq = b.pt_seq
+		WHERE 1=1
+			AND a.pm_seq = #{seq}
+		ORDER BY a.or_seq ASC
+	</select>
+	
+	<!-- 임의 발주 / 요청 발주 리스트 개수 가져오기 -->
+	<select id="select_order_cnt" resultType="int">
+		<!-- 임의 발주 -->
+		<if test="section == 10">
+			SELECT
+				COUNT(a.pt_seq)
+			FROM part a
+			LEFT JOIN device_standard1 b ON a.ds_seq = b.ds_seq
+			WHERE 1=1
+				<if test="none_budget"> AND a.bg_seq = 0 </if>
+				<if test="budget"> AND a.bg_seq IN <foreach collection="budget" item="item" open="(" separator="," close=")"> #{item.bg_seq} </foreach> </if>
+				<if test="pt_code != null and pt_code != ''"> AND a.pt_code LIKE '%${pt_code}%' </if>
+				<if test="ds_name != null and ds_name != ''"> AND b.ds_name LIKE '%${ds_name}%' </if>
+				<if test="pt_name != null and pt_name != ''"> AND a.pt_name LIKE '%${pt_name}%' </if>
+				<if test="pt_spec != null and pt_spec != ''"> AND a.pt_spec LIKE '%${pt_spec}%' </if>
+		</if>
+		
+		<!-- 요청 발주 -->
+		<if test="section == 11">
+			SELECT
+				COUNT(tb1.ol_seq)
+			FROM order_log tb1
+			LEFT JOIN
+			(
+			    SELECT
+			        MAX(a.ol_seq) AS ol_seq,
+			        CASE b.og_level
+			        	WHEN 3 THEN a.og_seq
+			        	ELSE b.og_pcode
+			        END AS group_seq
+			    FROM order_log a
+			    LEFT JOIN organization b ON a.og_seq = b.og_seq
+			    WHERE 1=1
+			    GROUP BY a.sr_seq, a.og_seq, a.pt_seq 
+			)tb2 ON tb1.ol_seq = tb2.ol_seq
+			LEFT JOIN part tb3 ON tb1.pt_seq = tb3.pt_seq
+			LEFT JOIN system tb4 ON tb3.sys_seq = tb4.seq
+			LEFT JOIN organization tb5 ON tb1.og_seq = tb5.og_seq
+			WHERE 1=1				
+			    AND tb2.ol_seq IS NOT NULL
+			    AND tb1.sr_seq = #{sr_seq}
+			    <if test="ol_total == null or ol_total == ''"> AND tb1.ol_total > 0 </if>
+			    <if test="ol_total != null and ol_total != ''">  AND tb1.ol_total >= #{ol_total} </if>
+			    <if test="og_name != null and og_name != ''"> AND tb5.og_name LIKE '%${og_name}%' </if>
+			    <if test="pt_code != null and pt_code != ''"> AND tb3.pt_code LIKE '%${pt_code}%' </if>
+				<if test="sys_name != null and sys_name != ''"> AND tb4.name LIKE '%${sys_name}%' </if>
+				<if test="pt_name != null and pt_name != ''"> AND tb3.pt_name LIKE '%${pt_name}%' </if>
+				<if test="auth == 3"> AND tb2.group_seq = #{auth_seq} </if>
+		</if>
+	</select>
+	
+	<!-- 임의 발주 / 요청 발주 리스트 가져오기 -->
+	<select id="select_order_list" resultType="HashMap">
+		<!-- 임의 발주 -->
+		<if test="section == 10">
+			SELECT
+				10 AS section, a.pt_seq AS seq, a.bg_seq, a.pt_code, b.ds_name, a.pt_name, a.pt_spec
+			FROM part a
+			LEFT JOIN device_standard1 b ON a.ds_seq = b.ds_seq
+			WHERE 1=1
+				<if test="none_budget"> AND a.bg_seq = 0 </if>
+				<if test="budget"> AND a.bg_seq IN <foreach collection="budget" item="item" open="(" separator="," close=")"> #{item.bg_seq} </foreach> </if>
+				<if test="pt_code != null and pt_code != ''"> AND a.pt_code LIKE '%${pt_code}%' </if>
+				<if test="ds_name != null and ds_name != ''"> AND b.ds_name LIKE '%${ds_name}%' </if>
+				<if test="pt_name != null and pt_name != ''"> AND a.pt_name LIKE '%${pt_name}%' </if>
+				<if test="pt_spec != null and pt_spec != ''"> AND a.pt_spec LIKE '%${pt_spec}%' </if>
+			<include refid="order"></include>
+			<include refid="paging"></include>
+		</if>
+		
+		<!-- 요청 발주 -->
+		<if test="section == 11">
+			SELECT
+				11 AS section, tb1.ol_seq AS seq, tb1.og_seq, tb5.og_name,
+				tb1.pt_seq, tb3.pt_code, tb3.sys_seq, tb4.name AS sys_name,
+				tb3.pt_name, tb1.ol_total AS or_total
+			FROM order_log tb1
+			LEFT JOIN
+			(
+			   SELECT
+			        MAX(a.ol_seq) AS ol_seq,
+			        CASE b.og_level
+			        	WHEN 3 THEN a.og_seq
+			        	ELSE b.og_pcode
+			        END AS group_seq
+			    FROM order_log a
+			    LEFT JOIN organization b ON a.og_seq = b.og_seq
+			    WHERE 1=1
+			    GROUP BY a.sr_seq, a.og_seq, a.pt_seq 
+			)tb2 ON tb1.ol_seq = tb2.ol_seq
+			LEFT JOIN part tb3 ON tb1.pt_seq = tb3.pt_seq
+			LEFT JOIN system tb4 ON tb3.sys_seq = tb4.seq
+			LEFT JOIN organization tb5 ON tb1.og_seq = tb5.og_seq
+			WHERE 1=1				
+			    AND tb2.ol_seq IS NOT NULL
+			    AND tb1.sr_seq = #{sr_seq}
+			    <if test="ol_total == null or ol_total == ''"> AND tb1.ol_total > 0 </if>
+			    <if test="ol_total != null and ol_total != ''">  AND tb1.ol_total >= #{ol_total} </if>
+			    <if test="og_name != null and og_name != ''"> AND tb5.og_name LIKE '%${og_name}%' </if>
+			    <if test="pt_code != null and pt_code != ''"> AND tb3.pt_code LIKE '%${pt_code}%' </if>
+				<if test="sys_name != null and sys_name != ''"> AND tb4.name LIKE '%${sys_name}%' </if>
+				<if test="pt_name != null and pt_name != ''"> AND tb3.pt_name LIKE '%${pt_name}%' </if>
+				<if test="auth == 3"> AND tb2.group_seq = #{auth_seq} </if>
+			<include refid="order"></include>
+			<include refid="paging"></include>
+		</if>
+	</select>
+	
+	<!-- 수불관리 자동정보 -->
+	<select id="select_payment_create" resultType="HashMap">
+		SELECT	
+			tb.per_team AS og_seq
+			, (SELECT a.sr_seq FROM storage_group a WHERE 1=1 AND a.og_seq = tb.per_team) AS pm_place
+			, tb.per_seq
+		FROM personnel tb WHERE 1=1
+			AND tb.per_seq = #{per_seq}
+	</select>
+	
+	<!-- 창고관리 리스트 개수 가져오기 -->
+	<select id="select_storage_cnt" resultType="int">
+		SELECT
+			COUNT(DISTINCT tb1.sr_seq)
+		FROM storage tb1
+		LEFT JOIN
+		(
+			SELECT
+				GROUP_CONCAT(b.og_name) AS og_name, a.sr_seq
+		    FROM storage_group a
+		    LEFT JOIN organization b ON a.og_seq = b.og_seq
+		    WHERE 1=1
+		    GROUP BY a.sr_seq    
+		)tb2 ON tb1.sr_seq = tb2.sr_seq
+		<if test="auth == 1">
+		LEFT JOIN storage_group tb3 ON tb1.sr_seq = tb3.sr_seq
+		LEFT JOIN organization tb4 ON tb3.og_seq = tb4.og_seq
+		LEFT JOIN organization tb5 ON tb4.og_pcode = tb5.og_code
+		</if>
+		WHERE 1=1
+			<if test="seq != null and seq != ''"> AND tb1.sr_seq LIKE '%${seq}%' </if>
+			<if test="sr_name != null and sr_name != ''"> AND tb1.sr_name LIKE '%${sr_name}%' </if>
+			<if test="sr_type != null and sr_type != ''"> AND tb1.sr_type = #{sr_type} </if>
+			<if test="sr_division != null and sr_division != ''"> AND tb1.sr_seq = #{sr_division} </if>
+			<if test="auth == 1"> AND tb5.og_seq = #{auth_seq} </if>
+			<if test="auth == 2"> AND tb1.writer = #{auth_seq} </if>
+	</select>
+	
+	<!-- 창고관리 리스트 가져오기 -->
+	<select id="select_storage_list" resultType="HashMap">
+		SELECT 
+			tb1.sr_seq AS seq, tb1.sr_name, tb2.og_name AS sr_division, tb1.sr_type
+		FROM storage tb1
+		LEFT JOIN
+		(
+			SELECT
+				GROUP_CONCAT(b.og_name) AS og_name, a.sr_seq
+		    FROM storage_group a
+		    LEFT JOIN organization b ON a.og_seq = b.og_seq
+		    WHERE 1=1
+		    GROUP BY a.sr_seq    
+		)tb2 ON tb1.sr_seq = tb2.sr_seq
+		<if test="auth == 1">
+		LEFT JOIN storage_group tb3 ON tb1.sr_seq = tb3.sr_seq
+		LEFT JOIN organization tb4 ON tb3.og_seq = tb4.og_seq
+		LEFT JOIN organization tb5 ON tb4.og_pcode = tb5.og_code
+		</if>
+		WHERE 1=1
+			<if test="seq != null and seq != ''"> AND tb1.sr_seq LIKE '%${seq}%' </if>
+			<if test="sr_name != null and sr_name != ''"> AND tb1.sr_name LIKE '%${sr_name}%' </if>
+			<if test="sr_type != null and sr_type != ''"> AND tb1.sr_type = #{sr_type} </if>
+			<if test="sr_division != null and sr_division != ''"> AND tb1.sr_seq = #{sr_division} </if>
+			<if test="auth == 1"> AND tb5.og_seq = #{auth_seq} </if>
+			<if test="auth == 2"> AND tb1.writer = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 창고관리 추가/수정 -->
+	<insert id="insert_storage">
+		INSERT INTO storage
+		(
+			sr_seq
+			<if test="sr_name != null and sr_name != ''">, sr_name</if>
+			<if test="sr_type != null and sr_type != ''">, sr_type</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="sr_name != null and sr_name != ''">, #{sr_name}</if>
+			<if test="sr_type != null and sr_type != ''">, #{sr_type}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			sr_seq = VALUES(sr_seq)
+			<if test="sr_name != null and sr_name != ''">, sr_name = VALUES(sr_name)</if>
+			<if test="sr_type != null and sr_type != ''">, sr_type = VALUES(sr_type)</if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(sr_seq) FROM storage 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND sr_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 창고관리 관리부서 삭제하기 -->
+	<delete id="delete_storage_group">
+		DELETE FROM storage_group WHERE 1=1
+			AND sr_seq = #{seq}
+			<if test="sg_seq"> AND sg_seq NOT IN <foreach collection="multi.sg_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 창고관리 관리부서 추가/수정 -->
+	<insert id="insert_storage_group">
+		INSERT INTO storage_group
+		(
+			sg_seq
+			, sr_seq
+			, og_seq
+			, update_date
+		)
+		VALUES 
+		<foreach collection="multi.sg_seq" index="index" separator=",">
+		(
+			IF(${multi.sg_seq[index]} = 0, NULL, ${multi.sg_seq[index]})
+			, ${seq}
+			, IF(${multi.og_seq[index]} = 0, NULL, ${multi.og_seq[index]})
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')	
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			sg_seq = VALUES(sg_seq)
+			, sr_seq = VALUES(sr_seq)
+			, og_seq = VALUES(og_seq)
+			, update_date = VALUES(update_date)
+	</insert>	
+	
+	<!-- 창고관리 상세정보 가져오기 -->
+	<select id="select_storage" resultType="HashMap">
+		SELECT
+			sr_seq AS seq, sr_name, sr_type
+		FROM storage WHERE 1=1
+			AND sr_seq = #{seq}
+	</select>
+	
+	<!-- 창고관리 관리부서 가져오기 -->
+	<select id="select_storage_group" resultType="HashMap">
+		SELECT
+			a.sg_seq, a.og_seq, b.og_name
+		FROM storage_group a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		WHERE 1=1
+			AND a.sr_seq = #{seq}
+		ORDER BY a.sg_seq ASC
+	</select>
+	
+	<!-- 창고관리 팝업 사용 유무 확인하기 -->
+	<select id="select_storage_status" resultType="int">
+		SELECT 
+			CASE COUNT(pm_seq)
+				WHEN 0 THEN 1001
+				ELSE 2001
+			END
+		FROM payment WHERE 1=1
+			AND pm_place = #{seq}
+			OR pm_storage = #{seq}
+	</select>
+	
+	<!-- 창고관리 삭제 -->
+	<delete id="delete_storage">
+		<if test="section == 1">
+		DELETE FROM storage_group WHERE 1=1 AND sr_seq = #{seq}
+		</if>
+		
+		<if test="section == 2">
+		DELETE FROM storage WHERE 1=1 AND sr_seq = #{seq}
+		</if>
+	</delete>
+	
+	<!-- 창고사용가능 여부확인 -->
+	<select id="select_storage_check" resultType="int">
+		SELECT
+			CASE COUNT(sg_seq)
+				WHEN 0 THEN 1001
+				ELSE 2001
+			END
+		FROM storage_group
+		WHERE 1=1
+			AND og_seq = #{og_seq}
+	</select>
+	
+	<!-- 부품재고조회 테이블 가져오기 -->
+	<select id="select_stock_table" resultType="HashMap">
+		<!-- 리스트 -->
+		<if test="section == 1">
+		SELECT
+			tb1.seq, tb3.pt_code, tb3.pt_name,
+			tb4.ds_name, tb2.sr_seq, tb5.og_name,
+			tb2.ol_total, tb2.ol_amount
+		FROM
+		(
+		    SELECT MAX(a.ol_seq) AS seq
+			FROM order_log a WHERE 1=1
+				AND LEFT(a.ol_date, 8) &lt;= DATE_FORMAT(#{date}, '%Y%m%d')
+			GROUP BY a.pt_seq, a.sr_seq, a.og_seq
+		)tb1
+		LEFT JOIN order_log tb2 on tb1.seq = tb2.ol_seq
+		LEFT JOIN part tb3 ON tb2.pt_seq = tb3.pt_seq
+		LEFT JOIN device_standard1 tb4 ON tb3.ds_seq = tb4.ds_seq
+		LEFT JOIN organization tb5 ON tb2.og_seq = tb5.og_seq
+		<if test="auth == 1">
+		LEFT JOIN organization tb6 ON tb5.og_pcode = tb6.og_code
+		</if>
+		WHERE 1=1
+			AND tb2.ol_amount != 0
+			<if test="og_seq != null and og_seq != ''"> AND tb2.og_seq = #{og_seq} </if>
+			<if test="sr_seq != null and sr_seq != ''"> AND tb2.sr_seq LIKE '%${sr_seq}%'</if>
+			<if test="pt_name != null and pt_name != ''"> AND tb3.pt_name LIKE '%${pt_name}%' </if>
+			<if test="auth == 1"> AND tb6.og_seq = #{auth_seq} </if>
+		ORDER BY tb2.og_seq ASC, tb2.pt_seq ASC
+		</if>
+		
+		<!-- 합계 -->
+		<if test="section == 2">
+		SELECT
+			SUM(tb2.ol_total) AS ol_total, SUM(tb2.ol_amount) AS ol_amount
+		FROM
+		(
+		    SELECT MAX(a.ol_seq) AS seq
+			FROM order_log a WHERE 1=1
+				AND a.ol_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			GROUP BY a.pt_seq, a.sr_seq, a.og_seq
+		)tb1
+		LEFT JOIN order_log tb2 on tb1.seq = tb2.ol_seq
+		LEFT JOIN part tb3 ON tb2.pt_seq = tb3.pt_seq
+		LEFT JOIN device_standard1 tb4 ON tb3.ds_seq = tb4.ds_seq
+		LEFT JOIN organization tb5 ON tb2.og_seq = tb5.og_seq
+		<if test="auth == 1">
+		LEFT JOIN organization tb6 ON tb5.og_pcode = tb6.og_code
+		</if>
+		WHERE 1=1
+			AND tb2.ol_amount != 0
+			<if test="og_seq != null and og_seq != ''"> AND tb2.og_seq = #{og_seq} </if>
+			<if test="sr_seq != null and sr_seq != ''"> AND tb2.sr_seq LIKE '%${sr_seq}%'</if>
+			<if test="pt_name != null and pt_name != ''"> AND tb3.pt_name LIKE '%${pt_name}%' </if>
+			<if test="auth == 1"> AND tb6.og_seq = #{auth_seq} </if>
+		</if>
+		
+		<!-- 재고조회 -->
+		<if test="section == 3">
+		SELECT
+			b.sr_seq, c.pt_code,
+			a.od_ea, a.od_price, (a.od_ea * a.od_price) AS od_amount
+		FROM order_detail a
+		LEFT JOIN order_log b ON a.ol_seq = b.ol_seq
+		LEFT JOIN part c ON b.pt_seq = c.pt_seq
+		WHERE 1=1
+			AND a.ol_seq = #{seq}
+		</if>	
+	</select>
+	
+	<!-- 부서/창고/부품정보 가져오기 -->
+	<select id="select_order_info" resultType="HashMap">
+		<if test="section == 1">
+		SELECT
+			a.pm_seq, a.og_seq,
+			IFNULL(a.pm_place, 0) AS pm_place, IFNULL(b.pt_seq, 0) AS pt_seq,
+			IFNULL(b.or_price, 0) AS or_price, IFNULL(b.or_total, 0) AS or_total,
+			IFNULL((b.or_price * b.or_total), 0) AS ol_amount,
+			IFNULL((b.or_total + IFNULL(c.ol_total, 0)), 0) AS ol_total
+		FROM payment a
+		LEFT JOIN order_request b ON a.pm_seq = b.pm_seq
+		LEFT JOIN
+		(
+			SELECT
+				tb1.ol_seq, tb2.sr_seq, tb2.og_seq, tb2.pt_seq, tb2.ol_total
+			FROM
+			(
+				SELECT MAX(tb.ol_seq) AS ol_seq
+				FROM order_log tb WHERE 1=1
+				GROUP BY tb.sr_seq, tb.og_seq, tb.pt_seq
+			)tb1
+			LEFT JOIN order_log tb2 ON tb1.ol_seq = tb2.ol_seq
+			WHERE 1=1
+		)c ON a.og_seq = c.og_seq AND a.pm_place = c.sr_seq AND b.pt_seq = c.pt_seq
+		WHERE 1=1
+			AND a.pm_seq = #{seq}
+		GROUP BY b.pt_seq
+		</if>
+		
+		<if test="section == 2">
+		SELECT
+			tb1.ol_seq, tb2.sr_seq, tb2.og_seq, tb2.pt_seq, tb2.ol_total, tb2.ol_amount,
+			IFNULL(TRUNCATE((tb2.ol_amount/tb2.ol_total), 0), 0) AS ol_price
+		FROM
+		(
+			SELECT MAX(tb.ol_seq) AS ol_seq
+			FROM order_log tb WHERE 1=1
+			GROUP BY tb.sr_seq, tb.og_seq, tb.pt_seq
+		)tb1
+		LEFT JOIN order_log tb2 ON tb1.ol_seq = tb2.ol_seq
+		WHERE 1=1
+			AND tb2.sr_seq IN <foreach collection="order_data" item="item" open="(" separator="," close=")"> #{item.pm_place} </foreach>
+			AND tb2.og_seq IN <foreach collection="order_data" item="item" open="(" separator="," close=")"> #{item.og_seq} </foreach>
+			AND tb2.pt_seq IN <foreach collection="order_data" item="item" open="(" separator="," close=")"> #{item.pt_seq} </foreach>
+		</if>
+	</select>
+	
+	<!-- 재고 업데이트하기 -->
+	<insert id="insert_order">
+		INSERT INTO order_log
+		(
+			sr_seq
+			, og_seq
+			, pt_seq
+			, ol_total
+			, ol_amount
+			, ol_date
+			, update_date
+		)
+		VALUES
+		<foreach collection="order_data" item="item" separator=",">
+		(
+			#{item.pm_place}
+			, #{item.og_seq}
+			, #{item.pt_seq}
+			, #{item.ol_total}
+			, #{item.ol_amount}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+	</insert>
+
+	<!-- 재고 상세내역 저장하기 -->
+	<insert id="insert_order_detail">
+		INSERT INTO order_detail
+		(
+			ol_seq
+			, od_ea
+			, od_price
+			, update_date
+		)
+		VALUES
+		<foreach collection="order_data" item="item" separator=",">
+		(
+			#{item.ol_seq}
+			, #{item.or_total}
+			, #{item.or_price}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+	</insert>
+	
+	<!-- 사업단 정보 가져오기 -->
+	<select id="select_organize" resultType="HashMap">
+		SELECT
+			a.og_seq, a.og_seq AS sr_seq, a.og_level, a.og_name,
+		    a.og_code, a.og_pcode, a.og_date,
+		    a.og_status, a.og_group, a.create_date,
+		    CASE a.og_level
+				WHEN 1 THEN a.og_code
+			    ELSE LEFT(a.og_code, 3)
+			END AS code
+		FROM organization a
+		WHERE 1=1
+			<if test="section == 10"> AND a.og_group = 1 </if>
+			<if test="section == 11">
+			<if test="org_seq">AND a.og_seq IN <foreach collection="org_seq" item="item" open="(" separator="," close=")"> #{item} </foreach></if>
+			<if test="org_none">AND a.og_seq = 0</if>
+			</if>
+		ORDER BY code ASC, og_code ASC
+	</select>
+	
+	<!-- 하위 레벨 조직도 시퀀스 가져오기 -->
+	<select id="select_organize_depth" resultType="HashMap">
+		SELECT
+			a.og_seq AS one, b.og_seq AS two, c.og_seq AS three,
+		    d.og_seq AS four, e.og_seq AS five, f.og_seq AS six
+		FROM organization a
+		LEFT JOIN organization b ON a.og_code = b.og_pcode AND a.og_code != b.og_code
+		LEFT JOIN organization c ON b.og_code = c.og_pcode AND b.og_code != c.og_code
+		LEFT JOIN organization d ON c.og_code = d.og_pcode AND c.og_code != d.og_code
+		LEFT JOIN organization e ON d.og_code = e.og_pcode AND d.og_code != e.og_code
+		LEFT JOIN organization f ON e.og_code = f.og_pcode AND e.og_code != f.og_code
+		WHERE 1=1
+			AND a.og_seq = #{og_seq}
+	</select>
+	
+	<!-- 부품관리 상세정보 엑셀 -->
+	<select id="select_part_excel" resultType="HashMap">
+		SELECT
+			a.pt_seq AS seq
+			, (SELECT tb.name FROM system tb WHERE 1=1 AND tb.seq=sys_seq) AS sys_seq
+			, a.ds_seq
+			, (SELECT tb.ds_name FROM device_standard1 tb WHERE 1=1 AND tb.ds_seq=a.ds_seq) AS ds_seq
+			, CASE
+				WHEN a.pt_operate=1 THEN '예'
+				ELSE '아니오' END AS pt_operate
+			, (SELECT tb.act_company FROM account tb WHERE 1=1 AND tb.act_seq=act_device) AS act_device
+			, a.pt_years
+			, a.pt_code
+			, a.bg_seq
+			, (SELECT tb.act_company FROM account tb WHERE 1=1 AND tb.act_seq=act_unit) AS act_unit
+			, a.pt_name
+			, a.pt_spec
+			, (SELECT tb.name FROM budget tb WHERE 1=1 AND tb.seq=a.bg_seq) AS bg_seq
+			, a.pt_unit
+			, a.pt_main
+			, a.pt_defect
+			, CASE 
+				WHEN a.pt_sn=1 THEN '예'
+				ELSE '아니오' END AS pt_sn
+			, CASE
+				WHEN a.pt_part=1 THEN '국산'
+				WHEN a.pt_part=2 THEN '외산'
+				ELSE '당사개발품' END AS pt_part
+			, CASE
+				WHEN a.pt_contract=1 THEN '예'
+				ELSE '아니오' END AS pt_contract
+			, CASE 
+				WHEN a.pt_test=1 THEN '예'
+				ELSE '아니오' END AS  pt_test
+		FROM part a
+		WHERE 1=1
+			AND a.pt_seq = #{seq}
+	</select>
+	
+	<!-- 부품관리 추가스펙 엑셀 -->
+	<select id="select_spec_excel" resultType="HashMap">
+		SELECT
+			sp_seq
+			, pt_seq
+			, sp_name
+			, sp_value
+			, sp_unit		
+		FROM spec WHERE 1=1
+			AND pt_seq = #{seq}
+		ORDER BY sp_seq ASC
+	</select>
+	
+	<!-- 수불관리 상세정보 엑셀 -->
+	<select id="select_payment_excel" resultType="HashMap">
+		SELECT
+			a.pm_seq AS seq
+			, a.pm_contract
+			, a.pm_letter
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=a.og_seq) AS og_seq
+			, (SELECT tb.act_company FROM account tb WHERE 1=1 AND tb.act_seq=a.act_seq) AS act_seq
+			, date_format(a.pm_date,'%Y-%m-%d') AS pm_date
+			, (SELECT tb.sr_name FROM storage tb WHERE 1=1 AND tb.sr_seq=a.pm_storage) AS pm_storage
+			, date_format(a.pm_delivery,'%Y-%m-%d') AS pm_delivery
+			, (SELECT tb.sr_name FROM storage tb WHERE 1=1 AND tb.sr_seq=a.pm_place) AS pm_place
+			, a.per_seq
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.per_seq) AS per_seq
+		FROM payment a
+		 WHERE 1=1
+			AND a.pm_seq = #{seq}
+	</select>
+	
+	<!-- 발주요청 정보 엑셀 -->
+	<select id="select_order_request_excel" resultType="HashMap">
+		SELECT
+			a.or_seq
+			, a.pm_seq
+			, (SELECT tb.pt_name FROM part tb WHERE 1=1 AND tb.pt_seq=a.pt_seq) AS pt_seq
+			, a.or_buy
+			, a.or_assign
+			, CONCAT(FORMAT(a.or_price,0),'원') AS or_price
+		FROM order_request a
+		 WHERE 1=1
+			AND pm_seq = #{seq}
+		ORDER BY a.or_seq ASC
+	</select>
+	
+	<!-- 창고관리 상세정보 엑셀 -->
+	<select id="select_storage_excel" resultType="HashMap">
+		SELECT
+			sr_seq AS seq
+			, sr_name
+			, CASE
+				WHEN sr_type=1 THEN '창고'
+				WHEN sr_type=2 THEN '캐비닛'
+				ELSE '차량' END AS sr_type
+		FROM storage WHERE 1=1
+			AND sr_seq = #{seq}
+	</select>
+	
+	<!-- 창고관리 관리부서 엑셀 -->
+	<select id="select_storage_group_excel" resultType="HashMap">
+		SELECT
+			a.sg_seq
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=a.og_seq) AS og_seq
+		FROM storage_group a 
+		WHERE 1=1
+		AND a.sr_seq = #{seq}
+	</select>
+</mapper>

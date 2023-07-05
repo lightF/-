@@ -1,0 +1,812 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.MeasureMapper">
+
+	<!-- 리스트 정렬 -->
+	<sql id="order"> 
+	<if test="column == null or column == ''"> ORDER BY seq DESC </if>
+	<if test="column">ORDER BY ${column} ${order} </if>	
+	</sql>
+	
+	<!-- 페이징 -->
+	<sql id="paging"> LIMIT #{start_num}, #{row_num} </sql>
+	
+	<!-- 조직도 시퀀스 가져오기 -->
+	<select id="select_org_seq" resultType="HashMap">
+		SELECT og_seq
+		FROM organization WHERE 1=1
+			<if test="type == 1">
+			AND og_name LIKE '%${ms_group}%'
+			AND og_group = 1
+			</if>
+			<if test="type == 2">
+			AND og_name LIKE '%${ms_check}%'
+			</if>
+			<if test="type == 3">
+			AND og_name LIKE '%${sf_group}%'
+			AND og_group = 1
+			</if>
+			<if test="type == 4">
+			AND og_name LIKE '%${sf_check}%'
+			</if>
+	</select>
+	
+	<!-- 계측기 모델 시퀀스 가져오기 -->
+	<select id="select_model_seq" resultType="HashMap">
+		SELECT seq AS md_seq
+		FROM model WHERE 1=1
+			AND name LIKE '%${md_name}%'
+	</select>
+	
+	<!-- 안전용품 시퀀스 가져오기 -->
+	<select id="select_safe_seq" resultType="HashMap">
+		SELECT seq AS se_seq
+		FROM safe WHERE 1=1
+			AND name LIKE '%${sd_product}%'
+	</select>
+
+	<!-- 계측기관리 리스트 개수 가져오기 -->
+	<select id="select_measure_cnt" resultType="int">
+		SELECT
+			COUNT(a.ms_seq)
+		FROM measure a
+		LEFT JOIN account b ON a.act_seq = b.act_seq
+		LEFT JOIN organization c ON a.ms_group = c.og_seq
+		LEFT JOIN organization d ON a.ms_check = d.og_seq
+		<if test="status == 1">
+		LEFT JOIN (SELECT COUNT(tb.msd_seq) AS cnt, tb.ms_seq FROM measure_detail tb WHERE 1=1 GROUP BY tb.ms_seq) e ON a.ms_seq = e.ms_seq
+		</if>
+		<if test="status == 2">
+		LEFT JOIN (SELECT COUNT(tb.mss_seq) AS cnt, tb.ms_seq FROM measure_sale tb WHERE 1=1 GROUP BY tb.ms_seq) e ON a.ms_seq = e.ms_seq
+		</if>
+		WHERE 1=1
+			<if test="md_name != null and md_name != ''"> AND a.md_seq = #{md_name} </if>
+			<if test="og_seq != null and og_seq != ''"> AND a.ms_group = #{og_seq} </if>
+			<if test="wrk_check != null and wrk_check != ''"> AND a.ms_check = #{wrk_check} </if>
+			<if test="ms_manage != null and ms_manage != ''"> AND a.ms_manage LIKE '%${ms_manage}%' </if>
+			<if test="status == 1 or status == 2"> AND e.cnt > 0 </if>
+			<if test="auth == 1"> AND a.ms_group = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+	</select>
+	
+	<!-- 계측기관리 리스트 가져오기 -->
+	<select id="select_measure_list" resultType="HashMap">
+		SELECT
+			a.ms_seq AS seq, a.ms_manage, a.md_seq, a.ms_division, a.ms_model,
+			a.act_seq, b.act_company, a.ms_group, c.og_name AS group_name, 
+			a.ms_check, d.og_name AS check_name, a.ms_asset, a.ms_project, a.ms_cycle
+		FROM measure a
+		LEFT JOIN account b ON a.act_seq = b.act_seq
+		LEFT JOIN organization c ON a.ms_group = c.og_seq
+		LEFT JOIN organization d ON a.ms_check = d.og_seq
+		<if test="status == 1">
+		LEFT JOIN (SELECT COUNT(tb.msd_seq) AS cnt, tb.ms_seq FROM measure_detail tb WHERE 1=1 GROUP BY tb.ms_seq) e ON a.ms_seq = e.ms_seq
+		</if>
+		<if test="status == 2">
+		LEFT JOIN (SELECT COUNT(tb.mss_seq) AS cnt, tb.ms_seq FROM measure_sale tb WHERE 1=1 GROUP BY tb.ms_seq) e ON a.ms_seq = e.ms_seq
+		</if>
+		WHERE 1=1
+			<if test="md_name != null and md_name != ''"> AND a.md_seq = #{md_name} </if>
+			<if test="og_seq != null and og_seq != ''"> AND a.ms_group = #{og_seq} </if>
+			<if test="wrk_check != null and wrk_check != ''"> AND a.ms_check = #{wrk_check} </if>			
+			<if test="ms_manage != null and ms_manage != ''"> AND a.ms_manage LIKE '%${ms_manage}%' </if>
+			<if test="status == 1 or status == 2"> AND e.cnt > 0 </if>
+			<if test="auth == 1"> AND a.ms_group = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 계측기관리 기본정보 가져오기 -->
+	<select id="select_measure" resultType="HashMap">
+		SELECT
+			a.ms_seq AS seq, a.ms_manage, a.md_seq, a.ms_stand1, a.ms_model, a.act_seq, b.act_company as act_name,
+			a.ms_create, a.ms_unuse, a.ms_buy, a.sys_seq, a.ms_group, c.og_name as ms_group_name, a.ms_check, d.og_name as ms_check_name, a.ms_stand2, 
+			a.ms_access, a.ms_years, a.ms_error, a.ms_account, a.ms_acq, a.ms_range, 
+			a.ms_division, a.ms_cycle, a.ms_etc, a.ms_asset, a.ms_project
+		FROM measure a
+		LEFT JOIN account b
+			ON a.act_seq = b.act_seq
+		LEFT JOIN organization c
+			ON a.ms_group = c.og_seq
+		LEFT JOIN organization d
+			ON a.ms_check = d.og_seq
+		WHERE 1=1
+			AND a.ms_seq = #{seq}
+	</select>
+	
+	<!-- 계측기관리 검교정 리스트 가져오기 -->
+	<select id="select_measure_detail" resultType="HashMap">
+		SELECT
+			msd_seq, ms_seq, msd_item, msd_date, msd_agency, msd_next, 
+			msd_judge, msd_action, msd_note
+		FROM measure_detail WHERE 1=1
+			AND ms_seq = #{seq}
+		ORDER BY msd_seq ASC
+	</select>
+	
+	<!-- 계측기관리 매각 리스트 가져오기 -->
+	<select id="select_measure_sale" resultType="HashMap">
+		SELECT
+			mss_seq, ms_seq, mss_change, mss_date, mss_over, 
+			mss_take, mss_reason, mss_sale
+		FROM measure_sale WHERE 1=1
+			AND ms_seq = #{seq}
+		ORDER BY mss_seq ASC
+	</select>
+	
+	<!-- 계측기관리 추가/수정 -->
+	<insert id="insert_measure">
+		INSERT INTO measure
+		(
+			ms_seq
+			<if test="ms_manage != null and ms_manage != ''">, ms_manage</if>
+			<if test="md_seq != null and md_seq != ''">, md_seq</if>
+			<if test="ms_stand1 != null and ms_stand1 != ''">, ms_stand1</if>
+			<if test="ms_model != null and ms_model != ''">, ms_model</if>
+			<if test="act_seq != null and act_seq != ''">, act_seq</if>
+			<if test="ms_create != null and ms_create != ''">, ms_create</if>
+			<if test="ms_unuse != null and ms_unuse != ''">, ms_unuse</if>
+			<if test="ms_buy != null and ms_buy != ''">, ms_buy</if>
+			<if test="sys_seq != null and sys_seq != ''">, sys_seq</if>
+			<if test="ms_group != null and ms_group != ''">, ms_group</if>
+			<if test="ms_check != null and ms_check != ''">, ms_check</if>
+			<if test="ms_stand2 != null and ms_stand2 != ''">, ms_stand2</if>
+			<if test="ms_access != null and ms_access != ''">, ms_access</if>
+			<if test="ms_years != null and ms_years != ''">, ms_years</if>
+			<if test="ms_error != null and ms_error != ''">, ms_error</if>
+			<if test="ms_account != null and ms_account != ''">, ms_account</if>
+			<if test="ms_acq != null and ms_acq != ''">, ms_acq</if>
+			<if test="ms_range != null and ms_range != ''">, ms_range</if>
+			<if test="ms_division != null and ms_division != ''">, ms_division</if>
+			<if test="ms_cycle != null and ms_cycle != ''">, ms_cycle</if>
+			<if test="ms_etc != null and ms_etc != ''">, ms_etc</if>
+			<if test="ms_asset != null and ms_asset != ''">, ms_asset</if>
+			<if test="ms_project != null and ms_project != ''">, ms_project</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="ms_manage != null and ms_manage != ''">, #{ms_manage}</if>
+			<if test="md_seq != null and md_seq != ''">, #{md_seq}</if>
+			<if test="ms_stand1 != null and ms_stand1 != ''">, #{ms_stand1}</if>
+			<if test="ms_model != null and ms_model != ''">, #{ms_model}</if>
+			<if test="act_seq != null and act_seq != ''">, #{act_seq}</if>
+			<if test="ms_create != null and ms_create != ''">, DATE_FORMAT(#{ms_create}, '%Y%m%d%H%i%s')</if>
+			<if test="ms_unuse != null and ms_unuse != ''">, DATE_FORMAT(#{ms_unuse}, '%Y%m%d%H%i%s')</if>
+			<if test="ms_buy != null and ms_buy != ''">, DATE_FORMAT(#{ms_buy}, '%Y%m%d%H%i%s')</if>
+			<if test="sys_seq != null and sys_seq != ''">, #{sys_seq}</if>
+			<if test="ms_group != null and ms_group != ''">, #{ms_group}</if>
+			<if test="ms_check != null and ms_check != ''">, #{ms_check}</if>
+			<if test="ms_stand2 != null and ms_stand2 != ''">, #{ms_stand2}</if>
+			<if test="ms_access != null and ms_access != ''">, #{ms_access}</if>
+			<if test="ms_years != null and ms_years != ''">, #{ms_years}</if>
+			<if test="ms_error != null and ms_error != ''">, #{ms_error}</if>
+			<if test="ms_account != null and ms_account != ''">, #{ms_account}</if>
+			<if test="ms_acq != null and ms_acq != ''">, #{ms_acq}</if>
+			<if test="ms_range != null and ms_range != ''">, #{ms_range}</if>
+			<if test="ms_division != null and ms_division != ''">, #{ms_division}</if>
+			<if test="ms_cycle != null and ms_cycle != ''">, #{ms_cycle}</if>
+			<if test="ms_etc != null and ms_etc != ''">, #{ms_etc}</if>
+			<if test="ms_asset != null and ms_asset != ''">, #{ms_asset}</if>
+			<if test="ms_project != null and ms_project != ''">, #{ms_project}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			ms_seq = VALUES(ms_seq)
+			<if test="ms_manage != null and ms_manage != ''">, ms_manage = VALUES(ms_manage)</if>
+			<if test="md_seq != null and md_seq != ''">, md_seq = VALUES(md_seq)</if>
+			<if test="ms_stand1 != null and ms_stand1 != ''">, ms_stand1 = VALUES(ms_stand1)</if>
+			<if test="ms_model != null and ms_model != ''">, ms_model = VALUES(ms_model)</if>
+			<if test="act_seq != null and act_seq != ''">, act_seq = VALUES(act_seq)</if>
+			<if test="ms_create != null and ms_create != ''">, ms_create = VALUES(ms_create)</if>
+			<if test="ms_unuse != null and ms_unuse != ''">, ms_unuse = VALUES(ms_unuse)</if>
+			<if test="ms_buy != null and ms_buy != ''">, ms_buy = VALUES(ms_buy)</if>
+			<if test="sys_seq != null and sys_seq != ''">, sys_seq = VALUES(sys_seq)</if>
+			<if test="ms_group != null and ms_group != ''">, ms_group = VALUES(ms_group)</if>
+			<if test="ms_check != null and ms_check != ''">, ms_check = VALUES(ms_check)</if>
+			<if test="ms_stand2 != null and ms_stand2 != ''">, ms_stand2 = VALUES(ms_stand2)</if>
+			<if test="ms_access != null and ms_access != ''">, ms_access = VALUES(ms_access)</if>
+			<if test="ms_years != null and ms_years != ''">, ms_years = VALUES(ms_years)</if>
+			<if test="ms_error != null and ms_error != ''">, ms_error = VALUES(ms_error)</if>
+			<if test="ms_account != null and ms_account != ''">, ms_account = VALUES(ms_account)</if>
+			<if test="ms_acq != null and ms_acq != ''">, ms_acq = VALUES(ms_acq)</if>
+			<if test="ms_range != null and ms_range != ''">, ms_range = VALUES(ms_range)</if>
+			<if test="ms_division != null and ms_division != ''">, ms_division = VALUES(ms_division)</if>
+			<if test="ms_cycle != null and ms_cycle != ''">, ms_cycle = VALUES(ms_cycle)</if>
+			<if test="ms_etc != null and ms_etc != ''">, ms_etc = VALUES(ms_etc)</if>
+			<if test="ms_asset != null and ms_asset != ''">, ms_asset = VALUES(ms_asset)</if>
+			<if test="ms_project != null and ms_project != ''">, ms_project = VALUES(ms_project)</if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(ms_seq) FROM measure 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND ms_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 계측기관리 검교정 삭제 -->
+	<delete id="delete_measure_detail">
+		DELETE FROM measure_detail WHERE 1=1
+			AND ms_seq = #{seq}
+			<if test="msd_seq"> AND msd_seq NOT IN <foreach collection="multi.msd_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 계측기관리 검교정 추가/수정 -->
+	<insert id="insert_measure_detail">
+		INSERT INTO measure_detail
+		(
+			msd_seq
+			, ms_seq
+			, msd_item
+			, msd_date
+			, msd_agency
+			, msd_next
+			, msd_judge
+			, msd_action
+			, msd_note
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.msd_seq" index="index" separator=","> 
+		(			
+			IF(${multi.msd_seq[index]} = 0, NULL, ${multi.msd_seq[index]})
+			, ${seq}
+			, '${multi.msd_item[index]}'
+			, CASE '${multi.msd_date[index]}'
+			  	WHEN '0' THEN 0
+			  	ELSE DATE_FORMAT('${multi.msd_date[index]}', '%Y%m%d%H%i%s')
+			  END	  
+			, '${multi.msd_agency[index]}'
+			, CASE '${multi.msd_next[index]}'
+			  	WHEN '0' THEN 0
+			  	ELSE DATE_FORMAT('${multi.msd_next[index]}', '%Y%m%d%H%i%s')
+			  END
+			, ${multi.msd_judge[index]}
+			, ${multi.msd_action[index]}
+			, '${multi.msd_note[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			msd_seq = VALUES(msd_seq)
+			, ms_seq = VALUES(ms_seq)
+			, msd_item = VALUES(msd_item)
+			, msd_date = VALUES(msd_date)
+			, msd_agency = VALUES(msd_agency)
+			, msd_next = VALUES(msd_next)
+			, msd_judge = VALUES(msd_judge)
+			, msd_action = VALUES(msd_action)
+			, msd_note = VALUES(msd_note)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 계측기관리 매각 삭제 -->
+	<delete id="delete_measure_sale">
+		DELETE FROM measure_sale WHERE 1=1
+			AND ms_seq = #{seq}
+			<if test="mss_seq"> AND mss_seq NOT IN <foreach collection="multi.mss_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 계측기관리 매각 추가/수정 -->
+	<insert id="insert_measure_sale">
+		INSERT INTO measure_sale
+		(
+			mss_seq
+			, ms_seq
+			, mss_change
+			, mss_date
+			, mss_over
+			, mss_take
+			, mss_reason
+			, mss_sale
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.mss_seq" index="index" separator=","> 
+		(
+			IF(${multi.mss_seq[index]} = 0, NULL, ${multi.mss_seq[index]})
+			, ${seq}
+			, '${multi.mss_change[index]}'			
+			, CASE '${multi.mss_date[index]}'
+			  	WHEN '0' THEN 0
+			  	ELSE DATE_FORMAT('${multi.mss_date[index]}', '%Y%m%d%H%i%s')
+			  END
+			, '${multi.mss_over[index]}'
+			, '${multi.mss_take[index]}'
+			, '${multi.mss_reason[index]}'
+			, '${multi.mss_sale[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			mss_seq = VALUES(mss_seq)
+			, ms_seq = VALUES(ms_seq)
+			, mss_change = VALUES(mss_change)
+			, mss_date = VALUES(mss_date)
+			, mss_over = VALUES(mss_over)
+			, mss_take = VALUES(mss_take)
+			, mss_reason = VALUES(mss_reason)
+			, mss_sale = VALUES(mss_sale)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 계측기관리 삭제 -->
+	<delete id="delete_measure">
+		<if test="section == 1">
+		DELETE FROM measure_sale WHERE 1=1 AND ms_seq = #{seq}
+		</if>
+		
+		<if test="section == 2">
+		DELETE FROM measure_detail WHERE 1=1 AND ms_seq = #{seq}
+		</if>
+		
+		<if test="section == 3">
+		DELETE FROM measure WHERE 1=1 AND ms_seq = #{seq}
+		</if>
+	</delete>
+	
+	<!-- 계측기보고서 -->
+	<select id="select_measure_report" resultType="HashMap">
+		<!-- 기본정보 -->
+		<if test="section == 1">
+			SELECT
+				a.ms_seq AS seq, a.ms_manage, a.md_seq, d.name AS md_name,
+				a.ms_stand1, a.ms_model, a.act_seq, b.act_company, a.ms_create, a.ms_access,
+				a.ms_years, a.ms_check, c.og_name AS check_name, a.ms_account, a.ms_buy, a.ms_acq,
+				a.ms_etc, a.ms_cycle, a.ms_error, a.ms_asset, a.ms_range, a.ms_project
+			FROM measure a
+			LEFT JOIN account b ON a.act_seq = b.act_seq
+			LEFT JOIN organization c ON a.ms_check = c.og_seq
+			LEFT JOIN model d ON a.md_seq = d.seq
+			WHERE 1=1
+				AND a.ms_seq = #{seq}
+		</if>
+		
+		<!-- 검교정 내역 -->
+		<if test="section == 2">
+			SELECT
+				msd_date, msd_agency, msd_action, msd_judge, msd_note
+			FROM measure_detail WHERE 1=1
+				AND ms_seq = #{seq}
+			ORDER BY msd_seq ASC
+		</if>
+		
+		<!-- 계측기 이력 사항 -->
+		<if test="section == 3">
+			SELECT
+				mss_change, mss_date, mss_over, mss_take, mss_reason, mss_sale
+			FROM measure_sale WHERE 1=1
+				AND ms_seq = #{seq}
+			ORDER BY mss_date DESC
+		</if>
+	</select>
+	
+	<!-- 안전용품관리 리스트 개수 가져오기 -->
+	<select id="select_safety_cnt" resultType="int">
+		SELECT
+			COUNT(a.sf_seq)
+		FROM safety a
+		LEFT JOIN organization b ON a.sf_group = b.og_seq
+		LEFT JOIN organization c ON a.sf_check = c.og_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.sf_update >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.sf_update &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="none_safe"> AND a.sd_product = 0 </if>
+			<if test="safe"> AND a.sd_product IN <foreach collection="safe" item="item" open="(" close=")" separator=","> #{item.se_seq} </foreach> </if>
+			<if test="sf_group != null and sf_group != ''"> AND a.sf_group = #{sf_group} </if>
+			<if test="sf_check != null and sf_check != ''"> AND a.sf_check = #{sf_check} </if>
+			<if test="auth == 1"> AND a.sf_group = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+	</select>
+	
+	<!-- 안전용품관리 리스트 가져오기 -->
+	<select id="select_safety_list" resultType="HashMap">
+		SELECT
+			a.sf_seq AS seq, a.sf_group, b.og_name AS sf_group_name, a.sf_check,
+			b.og_name AS group_name, c.og_name AS check_name,
+			a.sys_seq, a.sd_product, a.sf_amount,
+			(SELECT MAX(tb.sd_date) FROM safety_detail tb WHERE 1=1 AND tb.sf_seq = a.sf_seq) AS sf_date
+		FROM safety a
+		LEFT JOIN organization b ON a.sf_group = b.og_seq
+		LEFT JOIN organization c ON a.sf_check = c.og_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.sf_update >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.sf_update &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="none_safe"> AND a.sd_product = 0 </if>
+			<if test="safe"> AND a.sd_product IN <foreach collection="safe" item="item" open="(" close=")" separator=","> #{item.se_seq} </foreach> </if>
+			<if test="sf_group != null and sf_group != ''"> AND a.sf_group = #{sf_group} </if>
+			<if test="sf_check != null and sf_check != ''"> AND a.sf_check = #{sf_check} </if>
+			<if test="auth == 1"> AND a.sf_group = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 안전용품관리 기본정보 가져오기 -->
+	<select id="select_safety" resultType="HashMap">
+		SELECT
+			a.sf_seq AS seq, a.sf_group, c.og_name as sf_group_name, a.sf_check, b.og_name AS sf_check_name, a.sd_product, 
+			a.sys_seq, a.sf_amount, a.sf_update
+		FROM safety a
+		LEFT JOIN organization b ON a.sf_check = b.og_seq
+		LEFT JOIN organization c ON a.sf_group = b.og_seq
+		WHERE 1=1
+			AND sf_seq = #{seq}
+	</select>
+	
+	<!-- 안전용품관리 입출정보 가져오기 -->
+	<select id="select_safety_detail" resultType="HashMap">
+		SELECT
+			sd_seq, sf_seq, sd_date, sd_seq1, sd_input, input_ea, sd_seq2, sd_output, output_ea, sd_note
+		FROM safety_detail WHERE 1=1
+			AND sf_seq = #{seq}
+		ORDER BY sd_seq ASC
+	</select>
+	
+	<!-- 안전용품관리 추가/수정 -->
+	<insert id="insert_safety">
+		INSERT INTO safety
+		(
+			sf_seq
+			<if test="sf_group != null and sf_group != ''">, sf_group</if>
+			<if test="sf_check != null and sf_check != ''">, sf_check</if>
+			<if test="sd_product != null and sd_product != ''">, sd_product</if>
+			<if test="sys_seq != null and sys_seq != ''">, sys_seq</if>
+			<if test="sf_amount != null and sf_amount != ''">, sf_amount</if>
+			<if test="sf_update != null and sf_update != ''">, sf_update</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="sf_group != null and sf_group != ''">, #{sf_group}</if>
+			<if test="sf_check != null and sf_check != ''">, #{sf_check}</if>
+			<if test="sd_product != null and sd_product != ''">, #{sd_product}</if>
+			<if test="sys_seq != null and sys_seq != ''">, #{sys_seq}</if>
+			<if test="sf_amount != null and sf_amount != ''">, #{sf_amount}</if>
+			<if test="sf_update != null and sf_update != ''">, DATE_FORMAT(#{sf_update}, '%Y%m%d%H%i%s')</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			sf_seq = VALUES(sf_seq)
+			<if test="sf_group != null and sf_group != ''">, sf_group = VALUES(sf_group)</if>
+			<if test="sf_check != null and sf_check != ''">, sf_check = VALUES(sf_check)</if>
+			<if test="sd_product != null and sd_product != ''">, sd_product = VALUES(sd_product)</if>
+			<if test="sys_seq != null and sys_seq != ''">, sys_seq = VALUES(sys_seq)</if>
+			<if test="sf_amount != null and sf_amount != ''">, sf_amount = VALUES(sf_amount)</if>
+			<if test="sf_update != null and sf_update != ''">, sf_update = VALUES(sf_update)</if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+		
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(sf_seq) FROM safety 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND sf_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 안전용품관리 입출 삭제 -->
+	<delete id="delete_safety_detail">
+		DELETE FROM safety_detail WHERE 1=1
+			AND sf_seq = #{seq}
+			<if test="sd_seq"> AND sd_seq NOT IN <foreach collection="multi.sd_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 안전용품관리 입출 추가/수정 -->
+	<insert id="insert_safety_detail">
+		INSERT INTO safety_detail
+		(
+			sd_seq
+			, sf_seq
+			, sd_date
+			, sd_seq1,
+			, sd_input
+			, input_ea
+			, sd_seq2,
+			, sd_output
+			, output_ea
+			, sd_note
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.sd_seq" index="index" separator=","> 
+		(
+			IF(${multi.sd_seq[index]} = 0, NULL, ${multi.sd_seq[index]})
+			, ${seq}
+			, IF('${multi.sd_date[index]}' = '0', 0, DATE_FORMAT('${multi.sd_date[index]}', '%Y%m%d%H%i%s'))
+			, IF('${multi.sd_seq1[index]}' = 0, 0, ${multi.sd_seq1[index]})
+			, '${multi.sd_input[index]}'
+			, ${multi.input_ea[index]}
+			, IF('${multi.sd_seq2[index]}' = 0, 0, ${multi.sd_seq2[index]})
+			, '${multi.sd_output[index]}'
+			, ${multi.output_ea[index]}
+			, '${multi.sd_note[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			sd_seq = VALUES(sd_seq)
+			, sf_seq = VALUES(sf_seq)
+			, sd_date = VALUES(sd_date)
+			, sd_seq1 = VALUES(sd_seq1)
+			, sd_input = VALUES(sd_input)
+			, input_ea = VALUES(input_ea)
+			, sd_seq2 = VALUES(sd_seq2)
+			, sd_output = VALUES(sd_output)
+			, output_ea = VALUES(output_ea)
+			, sd_note = VALUES(sd_note)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 안전용품관리 삭제 -->
+	<delete id="delete_safety">
+		<if test="section == 1">
+		DELETE FROM safety_detail WHERE 1=1 AND sf_seq = #{seq}
+		</if>
+		
+		<if test="section == 2">
+		DELETE FROM safety WHERE 1=1 AND sf_seq = #{seq}
+		</if>
+	</delete>
+	
+	<!-- 계측기통계 테이블 가져오기 -->
+	<select id="select_measure_table" resultType="HashMap">
+		<!-- 리스트 -->
+		<if test="section == 1">
+		SELECT
+			tb1.md_seq, tb1.md_name, tb1.og_seq, 
+			REPLACE(tb1.og_name, '사업단', '') AS og_name,
+			IFNULL(tb2.value, 0) AS value
+		FROM
+		(
+		    SELECT a.seq AS md_seq, a.name AS md_name, a.code AS md_code, b.og_seq, b.og_name, b.og_code
+		    FROM model a
+		    LEFT JOIN organization b ON b.og_group = 1 AND b.og_code >= 200000000
+		    WHERE 1=1
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.ms_seq) AS value, a.md_seq, a.ms_group
+			FROM measure a
+			WHERE 1=1
+			GROUP BY a.md_seq, a.ms_group
+		)tb2 ON tb1.md_seq = tb2.md_seq AND tb1.og_seq = tb2.ms_group
+		WHERE 1=1
+		ORDER BY tb1.md_code ASC, tb1.og_code ASC
+		</if>
+		
+		<!-- 합계 -->
+		<if test="section == 2">
+		SELECT
+			SUM(mb.value) AS value, 0 AS md_seq, '총 계' AS md_name, mb.og_seq, mb.og_name
+		FROM
+		(
+			SELECT
+				tb1.md_seq, tb1.md_name, tb1.og_seq, tb1.og_name, IFNULL(tb2.value, 0) AS value, tb1.og_code
+			FROM
+			(
+			    SELECT a.seq AS md_seq, a.name AS md_name, a.code AS md_code, b.og_seq, b.og_name, b.og_code
+			    FROM model a
+			    LEFT JOIN organization b ON b.og_group = 1 AND b.og_code >= 200000000
+			    WHERE 1=1
+			)tb1
+			LEFT JOIN
+			(
+				SELECT
+					COUNT(a.ms_seq) AS value, a.md_seq, a.ms_group
+				FROM measure a
+				WHERE 1=1
+				GROUP BY a.md_seq, a.ms_group
+			)tb2 ON tb1.md_seq = tb2.md_seq AND tb1.og_seq = tb2.ms_group
+			WHERE 1=1
+		)mb
+		WHERE 1=1
+		GROUP BY mb.og_seq
+		ORDER BY mb.og_code ASC	
+		</if>
+		
+		<!-- 계측기 리스트 가져오기 -->
+		<if test="section == 3">
+		SELECT
+			seq AS md_seq, name AS md_name
+		FROM model WHERE 1=1
+		ORDER BY code ASC
+		</if>
+		
+		<!-- 사업단 리스트 가져오기 -->
+		<if test="section == 4">
+		SELECT og_seq, REPLACE(og_name, '사업단', '') AS og_name
+		FROM organization WHERE 1=1
+		AND og_group = 1 AND og_code >= 200000000
+		ORDER BY og_name ASC
+		</if>
+	</select>
+	
+	<!-- 안전용품 리스트 엑셀 -->
+	<select id="select_safety_list_excel" resultType="HashMap">
+		SELECT
+			a.sf_seq AS seq
+			, a.sf_group
+			, a.sf_check
+			, b.og_name AS group_name
+			, c.og_name AS check_name
+			, d.name
+			, d.seq
+			, e.name
+			, (SELECT tb.name FROM system tb WHERE 1=1 AND tb.seq=a.sys_seq) AS system_name
+			, a.sd_product
+			, CONCAT(FORMAT(sf_amount,0),'개') AS sf_amount
+			, date_format((SELECT MAX(tb.sd_date) FROM safety_detail tb WHERE 1=1 AND tb.sf_seq = a.sf_seq),'%Y-%m-%d') AS sd_date
+		FROM safety a
+		LEFT JOIN organization b ON a.sf_group = b.og_seq
+		LEFT JOIN organization c ON a.sf_check = c.og_seq
+		LEFT JOIN system d ON a.sys_seq = d.seq
+		LEFT JOIN safe e ON a.sd_product=e.seq
+		WHERE 1=1
+	</select>
+	
+	
+	<select id="select_safety_excel" resultType="HashMap">
+		SELECT
+			a.sf_seq AS seq
+			, a.sf_group
+			, a.sf_check 
+			, b.og_name AS check_name
+			, c.og_name AS group_name
+			, d.name AS sys_name
+			, e.name AS sd_name
+			, a.sd_product
+			, (SELECT tb.name FROM system tb WHERE 1=1 AND tb.seq=a.sys_seq) AS system_name
+			, CONCAT(FORMAT(sf_amount,0),'개') AS sf_amount
+			, date_format(sf_update, '%Y-%m-%d') AS sf_update
+ 		FROM safety a
+		LEFT JOIN organization b ON a.sf_check = b.og_seq
+		LEFT JOIN organization c ON a.sf_group = c.og_seq
+		LEFT JOIN system d ON a.sys_seq = d.seq
+		LEFT JOIN safe e ON a.sd_product=e.seq
+		WHERE 1=1
+			AND sf_seq = #{seq}
+	</select>
+	
+	<!-- 안전용품관리 입출정보 엑셀 -->
+	<select id="safety_detail_excel" resultType="HashMap">
+		SELECT
+			sd_seq, sf_seq, date_format(sd_date, '%Y-%m-%d') AS sd_date, sd_input, CONCAT(FORMAT(input_ea,0),'개') AS input_ea
+		  , sd_output, CONCAT(FORMAT(output_ea,0),'개') AS output_ea, sd_note
+		FROM safety_detail WHERE 1=1
+		AND sf_seq = #{seq}
+		ORDER BY sd_seq ASC
+	</select>
+	
+	<select id="select_measure_list_excel" resultType="HashMap">
+		SELECT
+			a.ms_seq AS seq
+			, a.ms_manage
+			, (SELECT tb.name FROM model tb WHERE 1=1 AND tb.seq=a.md_seq) AS md_seq
+			, a.ms_division
+			, a.ms_model
+			, a.act_seq
+			, b.act_company
+			, a.ms_group
+			, c.og_name AS group_name
+			, a.ms_check
+			, d.og_name AS check_name
+			, a.ms_asset
+			, a.ms_project
+			,CASE 
+			 WHEN ms_cycle=1 THEN '없음'
+			 WHEN ms_cycle=2 THEN '1년'
+			 WHEN ms_cycle=3 THEN '2년'
+			 WHEN ms_cycle=4 THEN '3년'
+			 WHEN ms_cycle=5 THEN '4년'
+			 WHEN ms_cycle=6 THEN '5년'
+			 END AS ms_cycle
+		FROM measure a
+		LEFT JOIN account b ON a.act_seq = b.act_seq
+		LEFT JOIN organization c ON a.ms_group = c.og_seq
+		LEFT JOIN organization d ON a.ms_check = d.og_seq
+		WHERE 1=1
+	</select>
+	
+	<!-- 계측기관리 기본정보 엑셀 -->
+	<select id="select_measure_excel" resultType="HashMap">
+		SELECT
+			a.ms_seq AS seq
+			, a.ms_manage
+			, (SELECT tb.name FROM model tb WHERE 1=1 AND tb.seq=a.md_seq) AS md_seq
+			, a.ms_stand1
+			, a.ms_model
+			,(SELECT tb.act_company FROM account tb WHERE 1=1 AND tb.act_seq=a.act_seq ) AS act_seq
+			, a.ms_create
+			, a.ms_unuse
+			, a.ms_buy
+			, (SELECT tb.name FROM system tb WHERE 1=1 AND tb.seq=a.sys_seq) AS system_name
+			, a.ms_group
+			, a.ms_check
+			, b.og_name AS group_name
+			, c.og_name AS check_name
+			, a.ms_stand2
+			, a.ms_access
+			, a.ms_years
+			, a.ms_error
+			,CASE 
+			WHEN ms_account=1 THEN '본사'
+			WHEN ms_account=2 THEN '사업단'
+			END AS ms_account
+			, a.ms_acq
+			, a.ms_range
+			, CASE
+			  WHEN ms_division=1 THEN '고정자산'
+			  WHEN ms_division=2 THEN '부외자산'
+			  ELSE '소모품구분' END AS ms_division
+			,CASE 
+			 WHEN ms_cycle=1 THEN '없음'
+			 WHEN ms_cycle=2 THEN '1년'
+			 WHEN ms_cycle=3 THEN '2년'
+			 WHEN ms_cycle=4 THEN '3년'
+			 WHEN ms_cycle=5 THEN '4년'
+			 WHEN ms_cycle=6 THEN '5년'
+			 END AS ms_cycle
+			, a.ms_etc
+			, a.ms_asset
+			, a.ms_project
+		FROM measure a
+		LEFT JOIN organization b ON a.ms_group = b.og_seq
+		LEFT JOIN organization c ON a.ms_check = c.og_seq
+		WHERE 1=1
+			AND a.ms_seq = #{seq}
+	</select>
+	
+	<!-- 계측기관리 검교정 리스트 엑셀 -->
+	<select id="select_measure_detail_excel" resultType="HashMap">
+		SELECT
+			msd_seq
+			, ms_seq
+			, msd_item
+			, date_format(msd_date,'%Y-%m-%d') AS msd_date
+			, msd_agency
+			, date_format(msd_next,'%Y-%m-%d') AS msd_next
+			,CASE
+				WHEN msd_judge=1 THEN '합격'
+				ELSE '불합격' END AS msd_judge
+			, CASE
+				WHEN msd_action=1 THEN '수리'
+				WHEN msd_action=2 THEN '재교정'
+				ELSE '폐기' END AS msd_action
+			, msd_note
+		FROM measure_detail WHERE 1=1
+		AND ms_seq = #{seq}
+		ORDER BY msd_seq ASC
+	</select>
+	
+	<!-- 계측기관리 매각 리스트 엑셀 -->
+	<select id="select_measure_sale_excel" resultType="HashMap">
+		SELECT
+			mss_seq
+			, ms_seq
+			, mss_change
+			, date_format(mss_date,'%Y-%m-%d') AS mss_date
+			, mss_over
+			, mss_take
+			, mss_reason
+			, mss_sale
+		FROM measure_sale WHERE 1=1
+		AND ms_seq = #{seq}
+		ORDER BY mss_seq ASC
+	</select>
+</mapper>

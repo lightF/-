@@ -1,0 +1,875 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.CallMapper">
+
+	<!-- 리스트 정렬 -->
+	<sql id="order"> 
+	<if test="column == null or column == ''"> ORDER BY seq DESC </if>
+	<if test="column">ORDER BY ${column} ${order} </if>	
+	</sql>
+	
+	<!-- 페이징 -->
+	<sql id="paging"> LIMIT #{start_num}, #{row_num} </sql>
+	
+	<!-- 조직도 시퀀스 가져오기 -->
+	<select id="select_org_seq" resultType="HashMap">
+		SELECT og_seq
+		FROM organization WHERE 1=1
+			<if test="type == 1">
+			AND og_name LIKE '%${wrk_group}%'
+			AND og_group = 1
+			</if>
+			<if test="type == 2">
+			AND og_name LIKE '%${wrk_check}%'
+			</if>
+	</select>
+	
+	<!-- 근무관리 리스트 개수 가져오기 -->
+	<select id="select_work_cnt" resultType="int">
+		SELECT
+			COUNT(a.wrk_seq)
+		FROM work a
+		LEFT JOIN organization b ON a.wrk_group = b.og_seq
+		LEFT JOIN organization c ON a.wrk_check = c.og_seq
+		WHERE 1=1
+			<if test="date != null and date != ''">
+			AND a.wrk_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.wrk_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			AND a.per_seq = #{seq}
+			</if>			
+			<if test="start_date != null and start_date != ''"> AND a.wrk_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.wrk_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="wrk_group != null and wrk_group != ''"> AND a.wrk_group = #{wrk_group} </if>
+			<if test="wrk_check != null and wrk_check != ''"> AND a.wrk_check = #{wrk_check} </if>
+			<if test="wrk_confirm != null and wrk_confirm != ''"> AND a.wrk_confirm = #{wrk_confirm} </if>
+			<if test="auth == 1"> AND a.wrk_group = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+	</select>	
+	
+	<!-- 근무관리 리스트 가져오기 -->
+	<select id="select_work_list" resultType="HashMap">
+		SELECT
+			a.wrk_seq AS seq, a.wrk_date, a.wrk_group, a.wrk_check,
+		    b.og_name AS group_name, c.og_name AS check_name, a.wd_seq, a.wrk_hour,
+		    a.wrk_end, a.wrk_confirm
+		FROM work a
+		LEFT JOIN organization b ON a.wrk_group = b.og_seq
+		LEFT JOIN organization c ON a.wrk_check = c.og_seq
+		WHERE 1=1
+			<if test="date != null and date != ''">
+			AND a.wrk_date >= DATE_FORMAT(#{date}, '%Y%m%d000000')
+			AND a.wrk_date &lt;= DATE_FORMAT(#{date}, '%Y%m%d235959')
+			AND a.per_seq = #{seq}
+			</if>	
+			<if test="start_date != null and start_date != ''"> AND a.wrk_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.wrk_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="wrk_group != null and wrk_group != ''"> AND a.wrk_group = #{wrk_group} </if>
+			<if test="wrk_check != null and wrk_check != ''"> AND a.wrk_check = #{wrk_check} </if>
+			<if test="wrk_confirm != null and wrk_confirm != ''"> AND a.wrk_confirm = #{wrk_confirm} </if>
+			<if test="auth == 1"> AND a.wrk_group = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 근무관리 추가/수정 -->
+	<insert id="insert_work">
+		INSERT INTO work
+		(
+			wrk_seq
+			, wrk_date
+			<if test="wrk_check != null and wrk_check != ''">, wrk_check</if>
+			<if test="wrk_group != null and wrk_group != ''">, wrk_group</if>
+			<if test="sys_seq != null and sys_seq != ''">, sys_seq</if>
+			<if test="bk_seq != null and bk_seq != ''">, bk_seq</if>
+			<if test="wrk_repair != null and wrk_repair != ''">, wrk_repair</if>
+			<if test="wrk_history != null and wrk_history != ''">, wrk_history</if>
+			<if test="wrk_confirm != null and wrk_confirm != ''">, wrk_confirm</if>
+			<if test="wrk_hour != null and wrk_hour != ''">, wrk_hour</if>
+			<if test="wrk_end != null and wrk_end != ''">, wrk_end</if>
+			<if test="wd_seq != null and wd_seq != ''">, wd_seq</if>
+			<if test="per_seq != null and per_seq != ''">, per_seq</if>
+			<if test="wrk_work != null and wrk_work != ''">, wrk_work</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', (SELECT MAX(a.wrk_seq) + 1 FROM work a WHERE 1=1), #{seq})
+			, IF(#{wrk_date} = '', DATE_FORMAT(NOW(), '%Y%m%d%H%i%s'), DATE_FORMAT(#{wrk_date}, '%Y%m%d%H%i%s'))
+			<if test="wrk_check != null and wrk_check != ''">, #{wrk_check}</if>
+			<if test="wrk_group != null and wrk_group != ''">, #{wrk_group}</if>
+			<if test="sys_seq != null and sys_seq != ''">, #{sys_seq}</if>
+			<if test="bk_seq != null and bk_seq != ''">, IF(#{bk_seq} = '', NULL, #{bk_seq})</if>
+			<if test="wrk_repair != null and wrk_repair != ''">, IF(#{wrk_repair} = '', 0, DATE_FORMAT(#{wrk_repair}, '%Y%m%d%H%i%s'))</if>
+			<if test="wrk_history != null and wrk_history != ''">, #{wrk_history} </if>
+			<if test="wrk_confirm != null and wrk_confirm != ''">, IF(#{wrk_confirm} = '', 1, #{wrk_confirm})</if>
+			<if test="wrk_hour != null and wrk_hour != ''">, DATE_FORMAT(#{wrk_hour}, '%Y%m%d%H%i%s')</if>
+			<if test="wrk_end != null and wrk_end != ''">, IF(#{wrk_end} = '', 0, DATE_FORMAT(#{wrk_end}, '%Y%m%d%H%i%s'))</if>
+			<if test="wd_seq != null and wd_seq != ''">, #{wd_seq}</if>
+			<if test="per_seq != null and per_seq != ''">, #{per_seq}</if>
+			<if test="wrk_work != null and wrk_work != ''">, #{wrk_work}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			wrk_seq = VALUES(wrk_seq)
+			, wrk_date = VALUES(wrk_date)
+			<if test="wrk_check != null and wrk_check != ''">, wrk_check = VALUES(wrk_check)</if>
+			<if test="wrk_group != null and wrk_group != ''">, wrk_group = VALUES(wrk_group)</if>
+			<if test="sys_seq != null and sys_seq != ''">, sys_seq = VALUES(sys_seq)</if>
+			<if test="bk_seq != null and bk_seq != ''">, bk_seq = VALUES(bk_seq)</if>
+			<if test="wrk_repair != null and wrk_repair != ''">, wrk_repair = VALUES(wrk_repair)</if>
+			<if test="wrk_history != null and wrk_history != ''">, wrk_history = VALUES(wrk_history)</if>
+			<if test="wrk_confirm != null and wrk_confirm != ''">, wrk_confirm = VALUES(wrk_confirm)</if>
+			<if test="wrk_hour != null and wrk_hour != ''">, wrk_hour = VALUES(wrk_hour)</if>
+			<if test="wrk_end != null and wrk_end != ''">, wrk_end = VALUES(wrk_end)</if>
+			<if test="wd_seq != null and wd_seq != ''">, wd_seq = VALUES(wd_seq)</if>
+			<if test="per_seq != null and per_seq != ''">, per_seq = VALUES(per_seq)</if>
+			<if test="wrk_work != null and wrk_work != ''">, wrk_work = VALUES(wrk_work)</if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(wrk_seq) FROM work 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND wrk_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 콜 근무관리 상세내역 삭제 -->
+	<delete id="delete_work_detail">
+		DELETE FROM work_detail WHERE 1=1
+			AND wrk_seq = #{seq}
+			<if test="wkd_seq"> AND wkd_seq NOT IN <foreach collection="multi.wkd_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 콜 근무관리 상세내역 추가/수정 -->
+	<insert id="insert_work_detail">
+		INSERT INTO work_detail
+		(
+			wkd_seq
+			, wrk_seq
+			, og_seq
+			, per_seq
+			, wkd_start
+			, wkd_work
+			, wkd_end
+			, wkd_finish
+			, wkd_job
+			, wkd_move
+			, wkd_hour
+			, wkd_total			
+			, wkd_amount
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.wkd_seq" index="index" separator=",">
+		(
+			IF(${multi.wkd_seq[index]} = 0, NULL, ${multi.wkd_seq[index]})				
+			, ${seq}				
+			, IF(${multi.og_seq[index]} = 0, NULL, ${multi.og_seq[index]})
+			, IF(${multi.per_seq2[index]} = 0, NULL, ${multi.per_seq2[index]})
+			, CASE '${multi.wkd_start[index]}'
+			  	WHEN '' THEN 0
+			  	ELSE DATE_FORMAT('${multi.wkd_start[index]}', '%Y%m%d%H%i%s')	
+			  END
+			, CASE '${multi.wkd_work[index]}'
+			  	WHEN '' THEN 0
+			  	ELSE DATE_FORMAT('${multi.wkd_work[index]}', '%Y%m%d%H%i%s')	
+			  END
+			, CASE '${multi.wkd_end[index]}'
+			  	WHEN '' THEN 0
+			  	ELSE DATE_FORMAT('${multi.wkd_end[index]}', '%Y%m%d%H%i%s')	
+			  END			  
+			, CASE '${multi.wkd_finish[index]}'
+			  	WHEN '' THEN 0
+			  	ELSE DATE_FORMAT('${multi.wkd_finish[index]}', '%Y%m%d%H%i%s')	
+			  END			  
+			, CASE 
+			  	WHEN '${multi.wkd_work[index]}' = '' THEN ''
+			  	WHEN '${multi.wkd_end[index]}' = '' THEN ''
+			  	ELSE (SELECT TIME_FORMAT(SEC_TO_TIME(IFNULL(TIMESTAMPDIFF(SECOND, DATE_FORMAT('${multi.wkd_work[index]}', '%Y%m%d%H%i%s'), DATE_FORMAT('${multi.wkd_end[index]}', '%Y%m%d%H%i%s')), 0)), '%H:%i'))
+			  END
+			, CASE 
+			  	WHEN '${multi.wkd_start[index]}' = '' THEN ''
+			  	WHEN '${multi.wkd_finish[index]}' = '' THEN ''
+			  	ELSE (SELECT TIME_FORMAT(SEC_TO_TIME(IFNULL(TIMESTAMPDIFF(SECOND, DATE_FORMAT('${multi.wkd_start[index]}', '%Y%m%d%H%i%s'), DATE_FORMAT('${multi.wkd_finish[index]}', '%Y%m%d%H%i%s')), 0) - IFNULL(TIMESTAMPDIFF(SECOND, DATE_FORMAT('${multi.wkd_work[index]}', '%Y%m%d%H%i%s'), DATE_FORMAT('${multi.wkd_end[index]}', '%Y%m%d%H%i%s')), 0)), '%H:%i'))
+			  END
+			, CASE 
+			  	WHEN '${multi.wkd_work[index]}' = '' THEN ''
+			  	WHEN '${multi.wkd_end[index]}' = '' THEN ''
+			  	ELSE (SELECT TIME_FORMAT(SEC_TO_TIME(IFNULL(TIMESTAMPDIFF(SECOND, DATE_FORMAT('${multi.wkd_start[index]}', '%Y%m%d%H%i%s'), DATE_FORMAT('${multi.wkd_finish[index]}', '%Y%m%d%H%i%s')), 0)), '%H:%i'))
+			  END			  
+			, ${multi.wkd_total[index]}
+			, ${multi.wkd_amount[index]}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			wkd_seq = VALUES(wkd_seq)
+			, wrk_seq = VALUES(wrk_seq)
+			, og_seq = VALUES(og_seq)
+			, per_seq = VALUES(per_seq)
+			, wkd_start = VALUES(wkd_start)
+			, wkd_work = VALUES(wkd_work)
+			, wkd_end = VALUES(wkd_end)
+			, wkd_finish = VALUES(wkd_finish)
+			, wkd_job = VALUES(wkd_job)
+			, wkd_move = VALUES(wkd_move)
+			, wkd_hour = VALUES(wkd_hour)
+			, wkd_total = VALUES(wkd_total)
+			, wkd_amount = VALUES(wkd_amount)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 콜 근무관리 삭제하기 -->
+	<delete id="delete_work">
+		<!-- 콜 근무관리 상세내역 -->
+		<if test="section == 1">
+		DELETE FROM work_detail WHERE 1=1
+			AND wrk_seq = #{seq}
+		</if>
+		
+		<!-- 콜 근무관리 -->
+		<if test="section == 2">
+		DELETE FROM work WHERE 1=1
+			AND wrk_seq = #{seq}
+		</if>
+	</delete>
+	
+	<!-- 콜 근무관리 기본정보 -->
+	<select id="select_work" resultType="HashMap">
+		SELECT
+			a.wrk_seq AS seq, a.wrk_date, a.wrk_check, b.og_name AS check_name,
+			a.wrk_group, c.og_name AS group_name, a.sys_seq, a.bk_seq, e.bk_code AS bk_seq_name,
+			a.wrk_repair, a.wrk_history, a.wrk_confirm, a.wrk_hour, a.wrk_end, 
+			a.wd_seq, a.per_seq, d.per_name, a.wrk_work
+		FROM work a
+		LEFT JOIN organization b ON a.wrk_check = b.og_seq
+		LEFT JOIN organization c ON a.wrk_group = c.og_seq
+		LEFT JOIN personnel d ON a.per_seq = d.per_seq
+		LEFT JOIN breakdown e ON a.bk_seq = e.bk_seq
+		WHERE 1=1
+			AND a.wrk_seq = #{seq}
+	</select>
+	
+	<!-- 콜 근무관리 상세내역 리스트 -->
+	<select id="select_work_detail" resultType="HashMap">
+		SELECT
+			a.wkd_seq, a.wrk_seq, a.og_seq, b.og_name, 
+			a.per_seq AS per_seq2, c.per_name, a.wkd_start, a.wkd_work,
+			a.wkd_end, a.wkd_finish, a.wkd_total, a.wkd_amount
+		FROM work_detail a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		LEFT JOIN personnel c ON a.per_seq = c.per_seq 
+		WHERE 1=1
+			AND a.wrk_seq = #{seq}
+		ORDER BY a.wkd_seq ASC
+	</select>
+	
+	<!-- 콜 근무관리보고서 가져오기 -->
+	<select id="select_work_report" resultType="HashMap">
+		<if test="section == 1">
+		SELECT
+			CONCAT(
+		    	DATE_FORMAT(a.wrk_date, '%Y년 %m월 %d일'),
+		    	CASE DAYOFWEEK(a.wrk_date)
+		    		WHEN '1' THEN ' (일요일)'
+		    		WHEN '2' THEN ' (월요일)'
+		    		WHEN '3' THEN ' (화요일)'
+		    		WHEN '4' THEN ' (수요일)'
+		    		WHEN '5' THEN ' (목요일)'
+		  	  		WHEN '6' THEN ' (금요일)'
+		    		WHEN '7' THEN ' (토요일)'
+		        END
+		    ) AS wrk_date, b.per_name, a.per_seq, a.wrk_work, c.name AS wrk_wd, a.wd_seq
+		FROM work a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		LEFT JOIN work_division c ON a.wd_seq = c.seq
+		WHERE 1=1
+			AND a.wrk_seq = #{seq}
+		</if>
+	
+		<if test="section == 2">
+		SELECT
+			a.wkd_seq, a.wrk_seq, b.og_name, c.jg_seq, c.per_name,
+			a.wkd_start, a.wkd_finish, a.wkd_job, a.wkd_move,			
+			a.wkd_amount
+		FROM work_detail a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		LEFT JOIN personnel c ON a.per_seq = c.per_seq
+		LEFT JOIN work d ON a.wrk_seq = d.wrk_seq
+		WHERE 1=1
+			AND a.wrk_seq = #{seq}
+		ORDER BY a.wkd_seq ASC
+		</if>
+	</select>
+	
+	<!-- 연장근무관리 리스트 개수 가져오기 -->
+	<select id="select_overtime_cnt" resultType="int">
+		SELECT
+			COUNT(a.ot_seq)
+		FROM overtime a
+		LEFT JOIN organization b ON a.ot_group = b.og_seq
+		LEFT JOIN organization c ON a.ot_check = c.og_seq
+		LEFT JOIN personnel d ON a.ot_person = d.per_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.ot_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.ot_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="wrk_group != null and wrk_group != ''"> AND a.ot_group = #{wrk_group} </if>
+			<if test="wrk_check != null and wrk_check != ''"> AND a.ot_check = #{wrk_check} </if>
+			<if test="per_name != null and per_name != ''"> AND d.per_seq = #{per_name} </if>
+			<if test="auth == 1"> AND a.ot_group = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+	</select>
+	
+	<!-- 연장근무관리 리스트 가져오기 -->
+	<select id="select_overtime_list" resultType="HashMap">
+		SELECT
+			a.ot_seq AS seq, a.ot_date, a.ot_group, b.og_name AS group_name,
+			a.ot_check, c.og_name AS check_name, a.brc_seq, a.ot_reason,
+			a.ot_person, d.per_name, a.ot_days, a.ot_confirm
+		FROM overtime a
+		LEFT JOIN organization b ON a.ot_group = b.og_seq
+		LEFT JOIN organization c ON a.ot_check = c.og_seq
+		LEFT JOIN personnel d ON a.ot_person = d.per_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.ot_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.ot_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="wrk_group != null and wrk_group != ''"> AND a.ot_group = #{wrk_group} </if>
+			<if test="wrk_check != null and wrk_check != ''"> AND a.ot_check = #{wrk_check} </if>
+			<if test="per_name != null and per_name != ''"> AND d.per_seq = #{per_name} </if>
+			<if test="auth == 1"> AND a.ot_group = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 연장근무관리 추가/수정 -->
+	<insert id="insert_overtime">
+		INSERT INTO overtime
+		(
+			ot_seq
+			<if test="ot_date != null and ot_date != ''">, ot_date</if>
+			<if test="brc_seq != null and brc_seq != ''">, brc_seq</if>
+			<if test="ot_group != null and ot_group != ''">, ot_group</if>
+			<if test="ot_check != null and ot_check != ''">, ot_check</if>
+			<if test="ot_relate != null and ot_relate != ''">, ot_relate</if>
+			<if test="ot_person != null and ot_person != ''">, ot_person</if>
+			<if test="ot_reason != null and ot_reason != ''">, ot_reason</if>
+			<if test="ot_start != null and ot_start != ''">, ot_start</if>
+			<if test="ot_end != null and ot_end != ''">, ot_end</if>
+			<if test="ot_days != null and ot_days != ''">, ot_days</if>
+			<if test="ot_note != null and ot_note != ''">, ot_note</if>
+			<if test="ot_confirm != null and ot_confirm != ''">, ot_confirm</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="ot_date != null and ot_date != ''">, DATE_FORMAT(#{ot_date}, '%Y%m%d%H%i%s')</if>
+			<if test="brc_seq != null and brc_seq != ''">, #{brc_seq}</if>
+			<if test="ot_group != null and ot_group != ''">, #{ot_group}</if>
+			<if test="ot_check != null and ot_check != ''">, #{ot_check}</if>
+			<if test="ot_relate != null and ot_relate != ''">, #{ot_relate}</if>
+			<if test="ot_person != null and ot_person != ''">, #{ot_person}</if>
+			<if test="ot_reason != null and ot_reason != ''">, #{ot_reason}</if>
+			<if test="ot_start != null and ot_start != ''">, DATE_FORMAT(#{ot_start}, '%Y%m%d%H%i%s')</if>
+			<if test="ot_end != null and ot_end != ''">, DATE_FORMAT(#{ot_end}, '%Y%m%d%H%i%s')</if>
+			<if test="ot_days != null and ot_days != ''">, #{ot_days}</if>
+			<if test="ot_note != null and ot_note != ''">, #{ot_note}</if>
+			<if test="ot_confirm != null and ot_confirm != ''">, #{ot_confirm}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			ot_seq = VALUES(ot_seq)
+			<if test="ot_date != null and ot_date != ''">, ot_date = VALUES(ot_date)</if>
+			<if test="brc_seq != null and brc_seq != ''">, brc_seq = VALUES(brc_seq)</if>
+			<if test="ot_group != null and ot_group != ''">, ot_group = VALUES(ot_group)</if>
+			<if test="ot_check != null and ot_check != ''">, ot_check = VALUES(ot_check)</if>
+			<if test="ot_relate != null and ot_relate != ''">, ot_relate = VALUES(ot_relate)</if>
+			<if test="ot_person != null and ot_person != ''">, ot_person = VALUES(ot_person)</if>
+			<if test="ot_reason != null and ot_reason != ''">, ot_reason = VALUES(ot_reason)</if>
+			<if test="ot_start != null and ot_start != ''">, ot_start = VALUES(ot_start)</if>
+			<if test="ot_end != null and ot_end != ''">, ot_end = VALUES(ot_end)</if>
+			<if test="ot_days != null and ot_days != ''">, ot_days = VALUES(ot_days)</if>
+			<if test="ot_note != null and ot_note != ''">, ot_note = VALUES(ot_note)</if>
+			<if test="ot_confirm != null and ot_confirm != ''">, ot_confirm = VALUES(ot_confirm)</if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+			<if test="seq == null or seq == ''">, create_date = VALUES(create_date)</if>
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(ot_seq) FROM overtime 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND ot_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 연장근무관리 상세내역 삭제 -->
+	<delete id="delete_overtime_detail">
+		DELETE FROM overtime_detail WHERE 1=1
+			AND ot_seq = #{seq}
+			<if test="is_od_seq"> AND od_seq NOT IN <foreach collection="multi.od_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 연장근무관리 상세내역 추가/수정 -->
+	<insert id="insert_overtime_detail">
+		INSERT INTO overtime_detail
+		(
+			od_seq
+			, ot_seq
+			, per_seq
+			, od_start
+			, od_end
+			, od_hour
+			, od_history
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.od_seq" index="index" separator=",">
+		(
+			IF(${multi.od_seq[index]} = 0, NULL, ${multi.od_seq[index]})				
+			, ${seq}				
+			, IF(${multi.per_seq[index]} = 0, NULL, ${multi.per_seq[index]})
+			, IF('${multi.od_start[index]}' = '', 0, DATE_FORMAT('${multi.od_start[index]}', '%Y%m%d%H%i%s'))			
+			, IF('${multi.od_end[index]}' = '', 0, DATE_FORMAT('${multi.od_end[index]}', '%Y%m%d%H%i%s')) 
+			, CASE
+				WHEN '${multi.od_start[index]}' = '' THEN 0
+				WHEN '${multi.od_end[index]}' = '' THEN 0
+				ELSE IFNULL(TIMESTAMPDIFF(HOUR, DATE_FORMAT('${multi.od_start[index]}', '%Y%m%d%H%i%s'), DATE_FORMAT('${multi.od_end[index]}', '%Y%m%d%H%i%s')), 0)					
+			  END
+			, '${multi.od_history[index]}'			
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			od_seq = VALUES(od_seq)
+			, ot_seq = VALUES(ot_seq)
+			, per_seq = VALUES(per_seq)
+			, od_start = VALUES(od_start)
+			, od_end = VALUES(od_end)
+			, od_hour = VALUES(od_hour)
+			, od_history = VALUES(od_history)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 연장근무관리 기본정보 -->
+	<select id="select_overtime" resultType="HashMap">
+		SELECT
+			a.ot_seq AS seq, a.ot_date, a.brc_seq, 
+			a.ot_group, d.og_name as ot_group_name, a.ot_check, b.og_name AS ot_check_name,
+			a.ot_relate, a.ot_person, c.per_name as ot_person_name, a.ot_reason, a.ot_start, a.ot_end, 
+			a.ot_days, a.ot_note, a.ot_confirm
+		FROM overtime a
+		LEFT JOIN organization b ON a.ot_check = b.og_seq
+		LEFT JOIN personnel c ON a.ot_person = c.per_seq
+		LEFT JOIN organization d ON a.ot_group = d.og_seq
+		WHERE 1=1
+			AND a.ot_seq = #{seq}
+	</select>
+	
+	<!-- 연장근무관리 상세정보 -->
+	<select id="select_overtime_detail" resultType="HashMap">
+		SELECT
+			a.od_seq, a.ot_seq, a.per_seq, b.per_name,
+			a.od_start, a.od_end, a.od_history
+		FROM overtime_detail a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		WHERE 1=1
+			AND a.ot_seq = #{seq}
+	</select>
+	
+	<!-- 연장근무관리 삭제 -->
+	<delete id="delete_overtime">
+		<!-- 연장근무관리 상세내역 -->
+		<if test="section == 1">
+		DELETE FROM overtime_detail WHERE 1=1
+			AND ot_seq = #{seq}
+		</if>
+		
+		<!-- 연장근무관리 -->
+		<if test="section == 2">
+		DELETE FROM overtime WHERE 1=1
+			AND ot_seq = #{seq}
+		</if>
+	</delete>
+	
+	<!-- 처리결과 수정하기 -->
+	<update id="update_overtime_status">
+		UPDATE overtime SET
+		ot_confirm = 2, update_date=DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		WHERE 1=1 AND ot_seq = #{seq}
+	</update>
+	
+	<!-- 연장근무관리보고서 -->
+	<select id="select_overtime_report" resultType="HashMap">
+		<!-- 결원사항 -->
+		<if test="section == 1">
+		SELECT
+			a.ot_check, b.og_name AS check_name, a.ot_person, c.per_name,
+			a.ot_start, a.ot_end, (a.ot_days * 8) AS ot_hour, a.ot_relate, a.ot_reason
+		FROM overtime a
+		LEFT JOIN organization b ON a.ot_check = b.og_seq
+		LEFT JOIN personnel c ON a.ot_person = c.per_seq
+		WHERE 1=1
+			AND a.ot_seq = #{seq}
+		</if>
+		
+		<!-- 연장근무사항 총계 -->
+		<if test="section == 2">
+		SELECT
+			SUM(od_hour) AS od_total
+		FROM overtime_detail WHERE 1=1
+			AND ot_seq = #{seq}
+		</if>
+		
+		<!-- 연장근무사항 -->
+		<if test="section == 3">
+		SELECT
+			c.og_name, b.per_name, a.od_start, a.od_end, a.od_hour, 
+			a.od_history, d.od_total, d.od_cnt
+		FROM overtime_detail a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		LEFT JOIN organization c ON b.per_team = c.og_seq
+		LEFT JOIN
+		(
+		    SELECT tb1.per_seq, SUM(tb1.od_hour) AS od_total,
+		    COUNT(tb1.od_seq) AS od_cnt
+		    FROM overtime_detail tb1 WHERE 1=1
+		    	AND tb1.ot_seq = #{seq}
+		    GROUP BY tb1.per_seq
+		)d ON a.per_seq = d.per_seq
+		WHERE 1=1
+			AND a.ot_seq = #{seq}
+		ORDER BY a.od_seq ASC
+		</if>
+	</select>
+	
+	<!-- 콜 근무 실적 리스트 개수 가져오기 -->
+	<select id="select_revenue_cnt" resultType="int">
+		SELECT 
+			COUNT(a.wkd_seq)
+		FROM work_detail a
+		LEFT JOIN work b ON a.wrk_seq = b.wrk_seq
+		LEFT JOIN organization c ON a.og_seq = c.og_seq
+		LEFT JOIN personnel d ON a.per_seq = d.per_seq
+		WHERE 1=1
+			<if test="og_seq != null and og_seq != ''"> AND b.wrk_group = #{og_seq} </if>
+			<if test="date != null and date != ''"> AND LEFT(a.wkd_start, 6) = DATE_FORMAT(#{date}, '%Y%m') </if>
+			<if test="auth == 1"> AND b.wrk_group = #{auth_seq} </if>
+			<if test="auth == 2"> AND b.writer = #{auth_seq} </if>
+	</select>
+	
+	<!-- 콜 근무 실적 리스트 가져오기 -->
+	<select id="select_revenue_list" resultType="HashMap">
+		SELECT 
+			a.wkd_seq AS seq, a.wkd_start, a.wkd_finish, b.wrk_group, c.og_name, b.wd_seq, d.per_name,
+		    a.wkd_hour, a.wkd_amount, b.sys_seq, b.wrk_work
+		FROM work_detail a
+		LEFT JOIN work b ON a.wrk_seq = b.wrk_seq
+		LEFT JOIN organization c ON a.og_seq = c.og_seq
+		LEFT JOIN personnel d ON a.per_seq = d.per_seq
+		WHERE 1=1
+			<if test="og_seq != null and og_seq != ''"> AND b.wrk_group = #{og_seq} </if>
+			<if test="date != null and date != ''"> AND LEFT(a.wkd_start, 6) = DATE_FORMAT(#{date}, '%Y%m') </if>
+			<if test="auth == 1"> AND b.wrk_group = #{auth_seq} </if>
+			<if test="auth == 2"> AND b.writer = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+
+	<!-- 월집계표 -->
+	<select id="select_month_list" resultType="HashMap">
+		<!-- 작업구분 시퀀스 기져오기 -->
+		<if test="section == 1">
+		SELECT
+			seq
+		FROM work_division WHERE 1=1
+			AND name IN ('유지보수', '고장수리', '부대업무', '대외업무', '기타')
+		</if>
+	
+		<!-- 집계표 계 -->
+		<if test="section == 2">
+		SELECT
+			tb.value1, 
+			TIME_FORMAT(SEC_TO_TIME(tb.value2), '%H:%i') AS value2,
+			tb.value3, tb.value4,
+		    TIME_FORMAT(SEC_TO_TIME(IFNULL(TRUNCATE(tb.value2/tb.value1, 0), 0)), '%H:%i') AS value5,
+		    IFNULL(TRUNCATE(tb.value3/tb.value1, 2), 0) AS value6,
+		    IFNULL(TRUNCATE(tb.value4/tb.value3, 0), 0) AS value7
+		FROM
+		(	
+			SELECT				
+				IFNULL(tb2.value1, 0) AS value1, IFNULL(tb3.value2, 0) AS value2,
+				IFNULL(tb3.value3, 0) AS value3, IFNULL(tb3.value4, 0) AS value4
+			FROM
+			(
+				SELECT
+				a.seq AS division
+				FROM seq_1_to_365 a WHERE 1=1
+		    	AND a.seq = 1
+			)tb1
+			LEFT JOIN
+			(
+				SELECT
+			    	COUNT(a.wrk_seq) AS value1
+			    FROM work a
+			    WHERE 1=1
+			    	AND a.wrk_confirm = 3
+			    	AND a.wrk_group = #{og_seq}
+			    	AND LEFT(a.wrk_date, 8) = DATE_FORMAT(#{date}, '%Y%m%d')
+			    	<if test="none_div"> AND a.wd_seq = 0 </if>
+					<if test="div"> AND a.wd_seq IN <foreach collection="div" item="item" open="(" close=")" separator=","> #{item.seq} </foreach> </if>
+					<if test="auth == 1"> AND a.wrk_group = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+			)tb2 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.wkd_total) AS value2, COUNT(a.wkd_seq) AS value3, SUM(a.wkd_amount) AS value4
+				FROM work_detail a
+				LEFT JOIN work b ON a.wrk_seq = b.wrk_seq
+				WHERE 1=1
+			    	AND b.wrk_confirm = 3
+			    	AND b.wrk_group = #{og_seq}
+			    	AND LEFT(b.wrk_date, 8) = DATE_FORMAT(#{date}, '%Y%m%d')
+			    	<if test="none_div"> AND b.wd_seq = 0 </if>
+					<if test="div"> AND b.wd_seq IN <foreach collection="div" item="item" open="(" close=")" separator=","> #{item.seq} </foreach> </if>
+					<if test="auth == 1"> AND b.wrk_group = #{auth_seq} </if>
+					<if test="auth == 2"> AND b.writer = #{auth_seq} </if>
+			)tb3 ON 1=1
+		)tb
+		</if>
+	
+		<!-- 집계표 -->
+		<if test="section == 3">
+		SELECT
+			tb.wd_seq, tb.wd_name, tb.value1, 
+			TIME_FORMAT(SEC_TO_TIME(tb.value2), '%H:%i') AS value2,
+			tb.value3, tb.value4,
+		    TIME_FORMAT(SEC_TO_TIME(IFNULL(TRUNCATE(tb.value2/tb.value1, 0), 0)), '%H:%i') AS value5,
+		    IFNULL(TRUNCATE(tb.value3/tb.value1, 2), 0) AS value6,
+		    IFNULL(TRUNCATE(tb.value4/tb.value3, 0), 0) AS value7
+		FROM
+		(	
+			SELECT
+				tb1.wd_seq, tb1.wd_name, tb1.wd_code,
+				IFNULL(tb2.value1, 0) AS value1, IFNULL(tb3.value2, 0) AS value2,
+				IFNULL(tb3.value3, 0) AS value3, IFNULL(tb3.value4, 0) AS value4
+			FROM
+			(
+				SELECT
+					a.seq AS wd_seq, a.name AS wd_name, a.code AS wd_code
+				FROM work_division a WHERE 1=1
+					<if test="none_div"> AND a.seq = 0 </if>
+					<if test="div"> AND a.seq IN <foreach collection="div" item="item" open="(" close=")" separator=","> #{item.seq} </foreach> </if>
+			)tb1
+			LEFT JOIN
+			(
+				SELECT
+			    	COUNT(a.wrk_seq) AS value1, a.wd_seq
+			    FROM work a
+			    WHERE 1=1
+			    	AND a.wrk_confirm = 3
+			    	AND a.wrk_group = #{og_seq}
+			    	AND LEFT(a.wrk_date, 8) = DATE_FORMAT(#{date}, '%Y%m%d')
+			    	<if test="none_div"> AND a.wd_seq = 0 </if>
+					<if test="div"> AND a.wd_seq IN <foreach collection="div" item="item" open="(" close=")" separator=","> #{item.seq} </foreach> </if>
+					<if test="auth == 1"> AND a.wrk_group = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+			    GROUP BY a.wd_seq
+			)tb2 ON tb1.wd_seq = tb2.wd_seq
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.wkd_total) AS value2, COUNT(a.wkd_seq) AS value3, SUM(a.wkd_amount) AS value4, b.wd_seq
+				FROM work_detail a
+				LEFT JOIN work b ON a.wrk_seq = b.wrk_seq
+				WHERE 1=1
+			    	AND b.wrk_confirm = 3
+			    	AND b.wrk_group = #{og_seq}
+			    	AND LEFT(b.wrk_date, 8) = DATE_FORMAT(#{date}, '%Y%m%d')
+			    	<if test="none_div"> AND b.wd_seq = 0 </if>
+					<if test="div"> AND b.wd_seq IN <foreach collection="div" item="item" open="(" close=")" separator=","> #{item.seq} </foreach> </if>
+					<if test="auth == 1"> AND b.wrk_group = #{auth_seq} </if>
+					<if test="auth == 2"> AND b.writer = #{auth_seq} </if>
+				GROUP BY b.wd_seq
+			)tb3 ON tb1.wd_seq = tb3.wd_seq
+		)tb
+		ORDER BY tb.wd_code ASC
+		</if>
+	</select>
+	
+	<!-- 콜근무실적 엑셀 -->
+	<select id="select_revenue_excel" resultType="HashMap">
+		SELECT 
+			DATE_FORMAT(a.wkd_start, '%m월 %d일') AS wkd_date,
+			DATE_FORMAT(a.wkd_start, '%m/%d %H:%i') AS wkd_start, 
+            DATE_FORMAT(a.wkd_finish, '%m/%d %H:%i') AS wkd_finish,
+            (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq = b.wrk_group) AS wrk_group,
+            (SELECT tb.name FROM work_division tb WHERE 1=1 AND tb.seq = b.wd_seq) AS wd_name,
+            d.per_name, a.wkd_hour, FORMAT(a.wkd_amount, 0) AS wkd_amount, b.wrk_work,
+            (SELECT tb.name FROM system tb WHERE 1=1 AND tb.seq = b.sys_seq) AS sys_name
+		FROM work_detail a
+		LEFT JOIN work b ON a.wrk_seq = b.wrk_seq
+		LEFT JOIN organization c ON a.og_seq = c.og_seq
+		LEFT JOIN personnel d ON a.per_seq = d.per_seq
+		WHERE 1=1
+			<if test="og_seq != null and og_seq != ''"> AND b.wrk_group = #{og_seq} </if>
+			<if test="date != null and date != ''"> AND LEFT(a.wkd_start, 8) = DATE_FORMAT(#{date}, '%Y%m%d') </if>
+		ORDER BY a.wkd_start ASC
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 연장근무관리보고서 엑셀 -->
+	<select id="select_overtime_report_excel" resultType="HashMap">
+		<!-- 결원사항 -->
+		<if test="section == 1">
+		SELECT
+			b.og_name AS check_name, c.per_name,
+            CONCAT(DATE_FORMAT(a.ot_start, '%Y-%m-%d'), ' ~ ', DATE_FORMAT(a.ot_end, '%Y-%m-%d')) AS ot_date,
+			(a.ot_days * 8) AS ot_hour, a.ot_relate, a.ot_reason
+		FROM overtime a
+		LEFT JOIN organization b ON a.ot_check = b.og_seq
+		LEFT JOIN personnel c ON a.ot_person = c.per_seq
+		WHERE 1=1
+			AND a.ot_seq = #{seq}
+		</if>
+		
+		<!-- 연장근무사항 총계 -->
+		<if test="section == 2">
+		SELECT
+			SUM(od_hour) AS od_total
+		FROM overtime_detail WHERE 1=1
+			AND ot_seq = #{seq}
+		</if>
+		
+		<!-- 연장근무사항 -->
+		<if test="section == 3">
+		SELECT
+			c.og_name, b.per_name, 
+            DATE_FORMAT(a.od_start, '%Y-%m-%d') AS od_date,
+            CONCAT(DATE_FORMAT(a.od_start, '%H:%i'), ' ~ ', DATE_FORMAT(a.od_end, '%H:%i')) AS hour, a.od_hour, 
+			a.od_history, d.od_total, d.od_cnt
+		FROM overtime_detail a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		LEFT JOIN organization c ON b.per_team = c.og_seq
+		LEFT JOIN
+		(
+		    SELECT tb1.per_seq, SUM(tb1.od_hour) AS od_total,
+		    COUNT(tb1.od_seq) AS od_cnt
+		    FROM overtime_detail tb1 WHERE 1=1
+		    	AND tb1.ot_seq = #{seq}
+		    GROUP BY tb1.per_seq
+		)d ON a.per_seq = d.per_seq
+		WHERE 1=1
+			AND a.ot_seq = #{seq}
+		ORDER BY a.od_seq ASC
+		</if>
+	</select>
+	
+	<!-- 콜 근무관리 기본정보 엑셀 -->
+	<select id="select_work_excel" resultType="HashMap">
+		SELECT
+			a.wrk_seq AS seq
+			, date_format(a.wrk_date,'%Y-%m-%d-%i-%s') AS wrk_date
+			, a.wrk_check
+			, b.og_name AS check_name
+			, a.wrk_group
+			, c.og_name AS group_name
+			, (SELECT tb.name FROM system tb WHERE 1=1 AND tb.seq=a.sys_seq) AS sys_seq
+			, a.bk_seq
+			, (SELECT tb.bk_number FROM breakdown tb WHERE 1=1 AND tb.bk_seq=a.bk_seq) AS bk_seq
+			, date_format(a.wrk_repair,'%Y-%m-%d') AS wrk_repair
+			, a.wrk_history
+			, CASE
+				WHEN wrk_confirm=1 THEN '확인중'
+				WHEN wrk_confirm=2 THEN '승인불가'
+				ELSE '확인완료' END AS wrk_confirm
+			, date_format(a.wrk_hour,'%Y-%m-%d-%i-%s') AS wrk_hour
+			, date_format(a.wrk_end,'%Y-%m-%d-%i-%s') AS wrk_end
+			, (SELECT tb.name FROM work_division tb WHERE 1=1 AND tb.seq=a.wd_seq) AS wd_seq
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.per_seq) AS per_seq
+			, d.per_name
+			, a.wrk_work
+		FROM work a
+		LEFT JOIN organization b ON a.wrk_check = b.og_seq
+		LEFT JOIN organization c ON a.wrk_group = c.og_seq
+		LEFT JOIN personnel d ON a.per_seq = d.per_seq 
+		WHERE 1=1
+			AND a.wrk_seq = #{seq}
+	</select>
+	
+	<!-- 콜 근무관리 상세내역 리스트 엑셀-->
+	<select id="select_work_detail_excel" resultType="HashMap">
+		SELECT
+			a.wkd_seq
+			, a.wrk_seq
+			, a.og_seq
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=a.og_seq) AS og_name
+			, a.per_seq AS per_seq2
+			, c.per_name
+			, date_format(a.wkd_start,'%Y-%m-%d-%i-%s') AS wkd_start
+			, date_format(a.wkd_work,'%Y-%m-%d-%i-%s') AS wkd_work
+			, date_format(a.wkd_end,'%Y-%m-%d-%i-%s') AS wkd_end
+			, date_format(a.wkd_finish,'%Y-%m-%d-%i-%s') AS wkd_finish
+			, a.wkd_total
+			, CONCAT(FORMAT(a.wkd_amount,0),'원') AS wkd_amount
+		FROM work_detail a
+		LEFT JOIN organization b ON a.wrk_seq = b.og_seq
+		LEFT JOIN personnel c ON a.per_seq = c.per_seq 
+		WHERE 1=1
+			AND a.wrk_seq = #{seq}
+	</select>
+	
+	<!-- 연장근무관리 기본정보 엑셀 -->
+	<select id="select_overtime_excel" resultType="HashMap">
+		SELECT
+			a.ot_seq AS seq
+			, date_format(a.ot_date,'%Y-%m-%d') AS ot_date
+			, (SELECT tb.name FROM branch tb WHERE 1=1 AND tb.seq=a.brc_seq) AS brc_seq
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=a.ot_group) AS ot_group
+			, b.og_name AS check_name
+			, a.ot_relate
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.ot_person) AS ot_person
+			, c.per_name
+			, a.ot_reason
+			, date_format(a.ot_start,'%Y-%m-%d') AS ot_start
+			, date_format(a.ot_end,'%Y-%m-%d') AS ot_end
+			, CONCAT(a.ot_days,'일') AS ot_days
+			, a.ot_note
+			, a.ot_confirm
+		FROM overtime a
+		LEFT JOIN organization b ON a.ot_check = b.og_seq
+		LEFT JOIN personnel c ON a.ot_person = c.per_seq
+		WHERE 1=1
+			AND a.ot_seq = #{seq}
+	</select>
+	
+	
+	<!-- 연장근무관리 상세정보 엑셀 -->
+	<select id="select_overtime_detail_excel" resultType="HashMap">
+		SELECT
+			a.od_seq
+			, a.ot_seq
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.per_seq) AS per_seq
+			, b.per_name
+			, date_format( a.od_start,'%Y-%m-%d-%i-%s') AS od_start
+			, date_format(a.od_end,'%Y-%m-%d-%i-%s') AS od_end
+			, a.od_history
+		FROM overtime_detail a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		WHERE 1=1
+			AND a.ot_seq = #{seq}
+	</select>
+</mapper>

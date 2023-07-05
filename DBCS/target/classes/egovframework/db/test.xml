@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.TestMapper">
+
+	<select id="select_password" resultType="HashMap">
+		SELECT per_seq, OLDPASS
+		FROM personnel WHERE 1=1
+		AND OLDPASS != ''
+		LIMIT #{start}, #{row}
+	</select>
+
+	<insert id="insert_password">
+		INSERT INTO personnel
+		(
+			per_seq, per_pwd
+		)
+		VALUES
+		<foreach collection="insert_data" item="item" separator=",">
+		(
+			#{item.per_seq}, #{item.pass}
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			per_seq = VALUES(per_seq)
+			, per_pwd = VALUES(per_pwd)
+	</insert>
+</mapper>

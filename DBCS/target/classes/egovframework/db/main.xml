@@ -1,0 +1,408 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.MainMapper">
+
+	<!-- 메뉴 사용여부 -->
+	<select id="select_menu_use" resultType="int">
+		SELECT
+			CASE COUNT(a.auth_seq)
+				WHEN 1 THEN
+					CASE auth_use
+					WHEN 2 THEN 2001
+					ELSE 1001
+					END
+				ELSE 3001
+			END
+		FROM auth a
+		LEFT JOIN menu b ON a.mn_seq = b.mn_seq
+		WHERE 1=1
+			AND b.mn_url = REPLACE(#{service}, '/mobile', '')
+			AND a.ag_seq = #{auth}
+	</select>
+	
+	<!-- 메뉴별 권한 가져오기 -->
+	<select id="select_auth" resultType="HashMap">
+		SELECT
+			CASE all_read
+			WHEN 2 THEN
+				CASE org_read
+				WHEN 2 THEN
+					CASE my_read
+					WHEN 2 THEN 4
+					ELSE 3
+					END
+				ELSE 2
+				END
+			ELSE 1
+			END AS read_type,
+			CASE all_edit
+			WHEN 2 THEN
+				CASE org_edit
+				WHEN 2 THEN
+					CASE my_edit
+					WHEN 2 THEN 4
+					ELSE 3
+					END
+				ELSE 2
+				END
+			ELSE 1
+			END AS edit_type,
+			a.my_create AS create_type
+		FROM auth a
+		LEFT JOIN menu b ON a.mn_seq = b.mn_seq
+		WHERE 1=1
+			AND b.mn_url = REPLACE(#{service}, '/mobile', '')
+			AND a.ag_seq = #{auth}
+	</select>
+	
+	<!-- 메뉴 가져오기 -->
+	<select id="select_menu" resultType="HashMap">
+		SELECT
+			b.*, a.auth_use
+		FROM auth a
+		LEFT JOIN menu b ON a.mn_seq = b.mn_seq
+		WHERE 1=1
+			AND a.ag_seq = #{auth}
+		ORDER BY b.mn_pcode ASC, b.mn_code ASC
+	</select>
+	
+	<!-- 즐겨찾기 가져오기 -->
+	<select id="select_bookmark" resultType="HashMap">
+		SELECT
+			a.bkm_seq AS seq, a.mn_seq, a.per_seq, a.bkm_code
+			, b.mn_name, b.mn_url
+		FROM bookmark a
+		LEFT JOIN menu b ON a.mn_seq = b.mn_seq
+		WHERE 1=1
+			AND a.per_seq = #{per_seq}
+		ORDER BY a.bkm_code ASC
+	</select>
+	
+	<!-- 즐겨찾기 삭제 -->
+	<delete id="delete_bookmark">
+		DELETE FROM menu WHERE 1=1 AND bkm_seq = #{seq}
+	</delete>
+	
+	<!-- 즐겨찾기 재정렬 -->
+	<insert id="insert_bookmark">
+		<!-- 재정렬 -->
+		<if test="section == 1">
+			SET @idx := 0;
+		
+			INSERT INTO bookmark
+			(
+				bkm_seq
+				, bkm_code
+			)
+			VALUES
+			<foreach collection="menu" item="item" separator=",">
+			(
+				#{item.seq}
+				, @idx := @idx + 1
+			)
+			</foreach>
+			ON DUPLICATE KEY UPDATE
+				bkm_seq = VALUES(bkm_seq)
+				, bkm_code = VALUES(bkm_code)
+		</if>
+		
+		<!-- 추가 -->
+		<if test="section == 2">
+			INSERT INTO bookmark
+			(
+				mn_seq
+				, per_seq
+				, bkm_code
+			)
+			VALUES
+			(
+				#{mn_seq}
+				, #{per_seq}
+				, (SELECT IF(MAX(a.bkm_code) IS NULL, 1, MAX(a.bkm_code) + 1) FROM bookmark a WHERE 1=1 AND a.per_seq = #{per_seq})
+			)
+		</if>
+	</insert>
+		
+	<!-- 당일 등록 건수 통계 & 당월 등록 건수 통계 -->
+	<select id="select_register_chart" resultType="HashMap">
+		SELECT
+			tb1.row, IFNULL(tb2.value1, 0) AS value1, IFNULL(tb3.value2, 0) AS value2, 
+			IFNULL(tb4.value3, 0) AS value3, IFNULL(tb5.value4, 0) AS value4
+		FROM
+		(
+			SELECT
+				a.seq AS row
+			FROM seq_1_to_365 a WHERE 1=1
+			   	AND a.seq = 1
+		)tb1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.bk_seq) AS value1
+		    FROM breakdown a
+		    LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		    WHERE 1=1
+		    	<if test="og_seq"> AND b.per_organize = #{og_seq} </if>
+		    	AND a.bk_receipt >= DATE_FORMAT(NOW(), '%Y%m%d000000')
+		    	AND a.bk_receipt &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959')
+		)tb2 ON 1=1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.at_seq) AS value2
+		    FROM action a WHERE 1=1
+		    	<if test="og_seq"> AND a.og_seq = #{og_seq} </if>
+		    	AND a.at_finish >= DATE_FORMAT(NOW(), '%Y%m%d000000')
+		    	AND a.at_finish &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959')
+		)tb3 ON 1=1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.wrk_seq) AS value3
+		    FROM work a WHERE 1=1
+		    	<if test="og_seq"> AND a.wrk_group = #{og_seq} </if>
+		    	AND a.wrk_date >= DATE_FORMAT(NOW(), '%Y%m%d000000')
+		    	AND a.wrk_date &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959')
+		)tb4 ON 1=1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.rc_seq) AS value4
+		    FROM race a
+		    LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+		    WHERE 1=1
+		    	<if test="og_seq"> AND b.og_seq = #{og_seq} </if>
+		    	AND a.rc_date >= DATE_FORMAT(NOW(), '%Y%m%d000000')
+		    	AND a.rc_date &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959')
+		)tb5 ON 1=1
+		
+		UNION ALL
+		
+		SELECT
+			tb1.row, IFNULL(tb2.value1, 0) AS value1, IFNULL(tb3.value2, 0) AS value2, 
+			IFNULL(tb4.value3, 0) AS value3, IFNULL(tb5.value4, 0) AS value4
+		FROM
+		(
+			SELECT
+				a.seq AS row
+			FROM seq_1_to_365 a WHERE 1=1
+			   	AND a.seq = 2
+		)tb1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.bk_seq) AS value1
+		    FROM breakdown a
+		    LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		    WHERE 1=1
+		    	<if test="og_seq"> AND b.per_organize = #{og_seq} </if>
+		    	AND LEFT(a.bk_receipt, 6) = DATE_FORMAT(NOW(), '%Y%m')
+		)tb2 ON 1=1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.at_seq) AS value2
+		    FROM action a WHERE 1=1
+		    	<if test="og_seq"> AND a.og_seq = #{og_seq} </if>
+		    	AND LEFT(a.at_finish, 6) = DATE_FORMAT(NOW(), '%Y%m')
+		)tb3 ON 1=1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.wrk_seq) AS value3
+		    FROM work a WHERE 1=1
+		    	<if test="og_seq"> AND a.wrk_group = #{og_seq} </if>
+		    	AND LEFT(a.wrk_date, 6) = DATE_FORMAT(NOW(), '%Y%m')
+		)tb4 ON 1=1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.rc_seq) AS value4
+		    FROM race a
+		    LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+		    WHERE 1=1
+		    	<if test="og_seq"> AND b.og_seq = #{og_seq} </if>
+		    	AND LEFT(a.rc_date, 6) = DATE_FORMAT(NOW(), '%Y%m')
+		)tb5 ON 1=1
+	</select>
+	
+	<!-- 주간 고장접수 신고지수 -->
+	<select id="select_breakdown_chart" resultType="HashMap">		
+		SELECT			
+			CASE tb1.item 
+				WHEN 0 THEN '월'
+				WHEN 1 THEN '화'
+				WHEN 2 THEN '수'
+				WHEN 3 THEN '목'
+				WHEN 4 THEN '금'
+				ELSE '토'
+			END AS item, 			
+			IFNULL(tb2.value, 0) AS value
+		FROM
+		(
+			SELECT
+				a.seq - 1 AS item
+			FROM seq_1_to_365 a WHERE 1=1
+			   	AND a.seq &lt;= 6
+		)tb1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.bk_seq) AS value,
+		    	DATE_FORMAT(DATE_SUB(a.bk_receipt, INTERVAL 1 DAY), '%w') AS week
+		    FROM breakdown a
+		    LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		    WHERE 1=1
+		    	<if test="og_seq"> AND b.per_organize = #{og_seq} </if>
+		    	AND a.bk_receipt >= DATE_FORMAT(ADDDATE(CURDATE(), - WEEKDAY(CURDATE()) + 0), '%Y%m%d')
+		    	AND a.bk_receipt &lt;= DATE_FORMAT(ADDDATE(CURDATE(), - WEEKDAY(CURDATE()) + 5), '%Y%m%d')
+		    GROUP BY week
+		)tb2 ON tb1.item = tb2.week
+		ORDER BY tb1.item ASC
+	</select>
+	
+	<!-- 주간 고장조치 신고지수 -->
+	<select id="select_action_chart" resultType="HashMap">		
+		SELECT
+			CASE tb1.item 
+				WHEN 0 THEN '월'
+				WHEN 1 THEN '화'
+				WHEN 2 THEN '수'
+				WHEN 3 THEN '목'
+				WHEN 4 THEN '금'
+				ELSE '토'
+			END AS item, 	
+			IFNULL(tb2.value, 0) AS value
+		FROM
+		(
+			SELECT
+				a.seq - 1 AS item
+			FROM seq_1_to_365 a WHERE 1=1
+			   	AND a.seq &lt;= 6
+		)tb1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.at_seq) AS value,
+		    	DATE_FORMAT(DATE_SUB(a.at_finish, INTERVAL 1 DAY), '%w') AS week
+		    FROM action a WHERE 1=1
+		    	<if test="og_seq"> AND a.og_seq = #{og_seq} </if>
+		    	AND a.at_finish >= DATE_FORMAT(ADDDATE(CURDATE(), - WEEKDAY(CURDATE()) + 0), '%Y%m%d')
+		    	AND a.at_finish &lt;= DATE_FORMAT(ADDDATE(CURDATE(), - WEEKDAY(CURDATE()) + 5), '%Y%m%d')
+		    GROUP BY week
+		)tb2 ON tb1.item = tb2.week
+		ORDER BY tb1.item ASC
+	</select>
+	
+	<!-- 사용자 근무일지 -->
+	<select id="select_work" resultType="HashMap">
+		SELECT
+			tb1.date, IFNULL(tb2.cnt, 0) AS cnt
+		FROM
+		(
+			SELECT
+		    	DATE_FORMAT(DATE_ADD(#{start_date}, INTERVAL a.seq - 1 DAY), '%Y%m%d') AS date
+		    FROM seq_1_to_365 a
+		    WHERE 1=1 AND a.seq &lt;= DATE_FORMAT(LAST_DAY(#{start_date}), '%d')
+		)tb1
+		LEFT JOIN
+		(
+		 	   SELECT
+					COUNT(a.wkd_seq) as cnt,
+					LEFT(a.wkd_start, 8) AS date
+				FROM work_detail a WHERE 1=1
+					AND a.per_seq = #{per_seq}
+					AND a.wkd_start >= DATE_FORMAT(#{start_date}, '%Y%m%d000000')
+					AND a.wkd_start &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959')
+				GROUP BY date
+		)tb2 ON tb1.date = tb2.date
+		WHERE 1=1
+		ORDER BY tb1.date ASC
+	</select>
+	
+	<!-- 근무자 통계 -->
+	<select id="select_worker_chart" resultType="HashMap">
+		SELECT
+			tb1.row, IFNULL(tb2.value1, 0) AS value1, IFNULL(tb3.value2, 0) AS value2, IFNULL(tb4.value3, 0) AS value3,
+			(IFNULL(tb2.value1, 0) + IFNULL(tb3.value2, 0) + IFNULL(tb4.value3, 0)) AS value4
+		FROM
+		(
+			SELECT
+				a.seq AS row
+			FROM seq_1_to_365 a WHERE 1=1
+			   	AND a.seq = 1
+		)tb1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.wkd_seq) AS value1
+		    FROM work_detail a WHERE 1=1
+		    	<if test="og_seq"> AND a.og_seq = #{og_seq} </if>
+		    	AND a.wkd_start >= DATE_FORMAT(NOW(), '%Y%m%d000000')
+		    	AND a.wkd_start &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959')
+		)tb2 ON 1=1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.od_seq) AS value2
+		    FROM overtime_detail a
+		    LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		    WHERE 1=1
+		    	<if test="og_seq"> AND b.per_organize = #{og_seq} </if>
+		    	AND a.od_start >= DATE_FORMAT(NOW(), '%Y%m%d000000')
+		    	AND a.od_start &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959')
+		)tb3 ON 1=1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.rc_seq) AS value3
+		    FROM race a
+		    LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+		    WHERE 1=1
+		    	<if test="og_seq"> AND b.og_seq = #{og_seq} </if>
+		    	AND a.rc_date >= DATE_FORMAT(NOW(), '%Y%m%d000000')
+		    	AND a.rc_date &lt;= DATE_FORMAT(NOW(), '%Y%m%d235959')
+		)tb4 ON 1=1
+		
+		UNION ALL
+		
+		SELECT
+			tb1.row, IFNULL(tb2.value1, 0) AS value1, IFNULL(tb3.value2, 0) AS value2, IFNULL(tb4.value3, 0) AS value3,
+			(IFNULL(tb2.value1, 0) + IFNULL(tb3.value2, 0) + IFNULL(tb4.value3, 0)) AS value4
+		FROM
+		(
+			SELECT
+				a.seq AS row
+			FROM seq_1_to_365 a WHERE 1=1
+			   	AND a.seq = 2
+		)tb1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.wkd_seq) AS value1
+		    FROM work_detail a WHERE 1=1
+		    	<if test="og_seq"> AND a.og_seq = #{og_seq} </if>
+		    	AND LEFT(a.wkd_start, 6) = DATE_FORMAT(NOW(), '%Y%m')
+		)tb2 ON 1=1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.od_seq) AS value2
+		    FROM overtime_detail a
+		    LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		    WHERE 1=1
+		    	<if test="og_seq"> AND b.per_organize = #{og_seq} </if>
+		    	AND LEFT(a.od_start, 6) = DATE_FORMAT(NOW(), '%Y%m')
+		)tb3 ON 1=1
+		LEFT JOIN
+		(
+		    SELECT
+		    	COUNT(a.rc_seq) AS value3
+		    FROM race a
+		    LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+		    WHERE 1=1
+		    	<if test="og_seq"> AND b.og_seq = #{og_seq} </if>
+		    	AND LEFT(a.rc_date, 6) = DATE_FORMAT(NOW(), '%Y%m')
+		)tb4 ON 1=1
+	</select>
+</mapper>

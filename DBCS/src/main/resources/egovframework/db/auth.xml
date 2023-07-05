@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.AuthMapper">
+	
+	<!-- 권한 리스트 가져오기 -->
+	<select id="select_auth_list" resultType="HashMap">
+		SELECT
+			a.auth_seq AS seq, a.ag_seq, a.all_read, a.all_edit, 
+			a.org_read, a.org_edit, a.my_read, a.my_create, a.my_edit, a.auth_use,
+			b.*
+		FROM auth a
+		LEFT JOIN menu b ON a.mn_seq = b.mn_seq
+		WHERE 1=1
+		ORDER BY a.mn_seq ASC, a.ag_seq ASC
+	</select>
+	
+	<!-- 권한 수정 -->
+	<insert id="insert_auth">
+		INSERT INTO auth
+		(
+			auth_seq
+			, mn_seq
+			, ag_seq
+			, all_read
+			, all_edit
+			, org_read
+			, org_edit
+			, my_read
+			, my_create
+			, my_edit
+			, auth_use
+		)
+		VALUES
+		<foreach collection="multi.seq" index="index" separator=",">
+		(
+			${multi.seq[index]}
+			, ${multi.mn_seq[index]}
+			, ${multi.ag_seq[index]}
+			, ${multi.all_read[index]}
+			, ${multi.all_edit[index]}
+			, ${multi.org_read[index]}
+			, ${multi.org_edit[index]}
+			, ${multi.my_read[index]}
+			, ${multi.my_create[index]}
+			, ${multi.my_edit[index]}
+			, ${multi.auth_use[index]}
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			auth_seq = VALUES(auth_seq)
+			, mn_seq = VALUES(mn_seq)
+			, ag_seq = VALUES(ag_seq)
+			, all_read = VALUES(all_read)
+			, all_edit = VALUES(all_edit)
+			, org_read = VALUES(org_read)
+			, org_edit = VALUES(org_edit)
+			, my_read = VALUES(my_read)
+			, my_create = VALUES(my_create)
+			, my_edit = VALUES(my_edit)
+			, auth_use = VALUES(auth_use)
+		
+	</insert>
+	
+	<!-- 메뉴별 편집 권한 -->
+	<select id="select_auth_edit" resultType="int">
+		<!-- 공지사항 -->
+		<if test="path == '/board/notice/edit' or path == '/board/notice/delete'">
+			SELECT
+				COUNT(a.nt_seq)
+			FROM notice a
+			LEFT JOIN personnel b ON a.per_seq = b.per_seq
+			WHERE 1=1
+				AND a.nt_seq = #{seq}
+				<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+		</if>
+		
+		<!-- 게시판 -->
+		<if test="path == '/board/edit' or path == '/board/delete'">
+			SELECT
+				COUNT(a.bd_seq)
+			FROM board a
+			LEFT JOIN personnel b ON a.per_seq = b.per_seq
+			WHERE 1=1
+				AND a.bd_seq = #{seq}
+				<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+		</if>
+		
+		<!-- 기기관리 -->
+		<if test="path == '/facility/device/edit' or path == '/facility/device/delete'">
+			SELECT
+				COUNT(DISTINCT a.dc_seq)
+			FROM device a
+			LEFT JOIN device_standard1 b ON a.ds_seq1 = b.ds_seq
+			LEFT JOIN organization c ON a.dc_team = c.og_seq
+			LEFT JOIN organization e ON c.og_pcode = e.og_code
+			WHERE 1=1
+				AND a.dc_seq = #{seq}
+				<if test="auth == 1"> AND e.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 표준명1 관리 -->
+		<if test="path == '/facility/standard1/edit' or path == '/facility/standard1/delete'">
+			SELECT 
+				COUNT(a.ds_seq)
+			FROM device_standard1 a
+			<if test="auth == 1">
+			LEFT JOIN personnel b ON a.writer = b.per_seq 
+			</if>
+			WHERE 1=1
+				AND a.ds_seq = #{seq}
+				<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 표준명2 관리 -->
+		<if test="path == '/facility/standard2/edit' or path == '/facility/standard2/delete'">
+			SELECT 
+				COUNT(a.ds_seq)
+			FROM device_standard2 a
+			<if test="auth == 1">
+			LEFT JOIN personnel b ON a.writer = b.per_seq 
+			</if>
+			WHERE 1=1
+				AND a.ds_seq = #{seq}
+				<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 거래처 관리 -->
+		<if test="path == '/facility/account/edit' or path == '/facility/account/delete'">
+			SELECT
+				COUNT(a.act_seq)
+			FROM account a
+			<if test="auth == 1">
+			LEFT JOIN personnel b ON a.writer = b.per_seq 
+			</if>
+			WHERE 1=1
+				AND a.act_seq = #{seq}
+				<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 부품관리 -->
+		<if test="path == '/part/edit' or path == '/part/delete'">
+			SELECT
+				COUNT(a.pt_seq)
+			FROM part a
+			LEFT JOIN device_standard1 b ON a.ds_seq = b.ds_seq
+			LEFT JOIN account c ON a.act_device = c.act_seq
+			LEFT JOIN personnel d ON a.writer = d.per_seq
+			WHERE 1=1
+				AND a.pt_seq = #{seq}
+				<if test="auth == 1"> AND d.per_organize = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 수불관리 -->
+		<if test="path == '/part/payment/edit' or path == '/part/payment/delete'">
+			SELECT
+				COUNT(tb1.pm_seq)
+			FROM payment tb1
+			LEFT JOIN account tb3 ON tb1.act_seq = tb3.act_seq
+			LEFT JOIN personnel tb4 ON tb1.per_seq = tb4.per_seq
+			<if test="auth == 1">
+			LEFT JOIN organization tb5 ON tb1.og_seq = tb5.og_seq
+			LEFT JOIN organization tb6 ON tb5.og_pcode = tb6.og_code
+			</if>
+			WHERE 1=1
+				AND tb1.pm_seq = #{seq}
+				<if test="auth == 1"> AND tb6.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND tb1.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 창고관리 -->
+		<if test="path == '/part/storage/edit' or path == '/part/storage/delete'">
+			SELECT
+				COUNT(DISTINCT tb1.sr_seq)
+			FROM storage tb1
+			<if test="auth == 1">
+			LEFT JOIN storage_group tb3 ON tb1.sr_seq = tb3.sr_seq
+			LEFT JOIN organization tb4 ON tb3.og_seq = tb4.og_seq
+			LEFT JOIN organization tb5 ON tb4.og_pcode = tb5.og_code
+			</if>
+			WHERE 1=1
+				AND tb1.sr_seq = #{seq}
+				<if test="auth == 1"> AND tb5.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND tb1.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 고장접수관리 -->
+		<if test="path == '/breakdown/edit' or path == '/breakdown/delete'">
+			SELECT
+				COUNT(a.bk_seq)
+			FROM breakdown a
+			LEFT JOIN personnel c ON a.per_seq = c.per_seq
+			WHERE 1=1
+				AND a.bk_seq = #{seq}
+				<if test="auth == 1"> AND c.per_organize = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+		</if>
+		
+		<!-- 고장조치관리 -->
+		<if test="path == '/breakdown/action/edit' or path == '/breakdown/action/delete'">
+			SELECT
+				COUNT(a.at_seq)
+			FROM action a
+			WHERE 1=1
+				AND a.at_seq = #{seq}
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 당직일지 -->
+		<if test="path == '/breakdown/shift/edit' or path == '/breakdown/shift/delete'">
+			SELECT
+				COUNT(a.sh_seq)
+			FROM shift a
+			WHERE 1=1
+				AND a.sh_seq = #{seq}
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 콜관리 -->
+		<if test="path == '/call/work/edit' or path == '/call/work/delete'">
+			SELECT
+				COUNT(a.wrk_seq)
+			FROM work a
+			WHERE 1=1
+				AND a.wrk_seq = #{seq}
+				<if test="auth == 1"> AND a.wrk_group = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+		</if>
+		
+		<!-- 연장근무관리 -->
+		<if test="path == '/call/overtime/edit' or path == '/call/overtime/delete'">
+			SELECT
+				COUNT(a.ot_seq)
+			FROM overtime a
+			WHERE 1=1
+				AND a.ot_seq = #{seq}
+				<if test="auth == 1"> AND a.ot_group = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 계측기관리 -->
+		<if test="path == '/measure/edit' or path == '/measure/delete'">
+			SELECT
+				COUNT(a.ms_seq)
+			FROM measure a
+			WHERE 1=1
+				AND a.ms_seq = #{seq}
+				<if test="auth == 1"> AND a.ms_group = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 안전용품관리 -->
+		<if test="path == '/measure/safety/edit' or path == '/measure/safety/delete'">
+			SELECT
+				COUNT(a.sf_seq)
+			FROM safety a
+			WHERE 1=1
+				AND a.sf_seq = #{seq}
+				<if test="auth == 1"> AND a.sf_group = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 운행일지 -->
+		<if test="path == '/car/edit' or path == '/car/delete'">
+			SELECT
+		 		COUNT(a.rc_seq)
+		 	FROM race a 
+		 	LEFT JOIN vehicle b ON a.ve_seq = b.ve_seq
+		 	where 1=1	 	
+		 		AND a.rc_seq = #{seq}
+				<if test="auth == 1"> AND b.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 차량관리 -->
+		<if test="path == '/car/vehicle/edit' or path == '/car/vehicle/delete'">
+			SELECT
+				COUNT(a.ve_seq)
+			FROM vehicle a
+			WHERE 1=1
+				AND a.ve_seq = #{seq}			
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> 
+					AND a.ve_creater = #{auth_seq}
+					
+					OR a.ve_writer1 = #{auth_seq}					
+					AND a.ve_seq = #{seq}
+					
+					OR a.ve_writer2 = #{auth_seq}					
+					AND a.ve_seq = #{seq}
+					
+					OR a.ve_writer3 = #{auth_seq}					
+					AND a.ve_seq = #{seq}
+					
+					OR a.ve_writer4 = #{auth_seq}
+					AND a.ve_seq = #{seq}
+				</if>
+		</if>
+		
+		<!-- 사고일지 -->
+		<if test="path == '/car/accident/edit' or path == '/car/accident/delete'">
+			SELECT
+				COUNT(a.ac_seq)
+			FROM accident a
+			WHERE 1=1
+				AND a.ac_seq = #{seq}
+				<if test="auth == 1"> AND a.per_organize = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+		
+		<!-- 직원관리 -->
+		<if test="path == '/user/edit' or path == '/user/delete'">
+			SELECT
+				<if test="auth == 1 or auth == 3"> COUNT(per_seq) </if>
+				<if test="auth == 2"> IF(per_seq = #{auth_seq}, 1, 0) </if>		
+			FROM personnel WHERE 1=1
+				AND per_seq = #{seq}	
+		    <if test="auth == 1"> AND per_organize = #{auth_seq} </if>
+		</if>
+		
+		<!-- 조직관리 -->
+		<if test="path == '/org/edit' or path == '/org/delete'">
+			SELECT
+				<if test="auth == 1"> IF(a.og_seq = #{auth_seq}, 1, 0) </if>
+				<if test="auth == 2"> COUNT(a.og_seq) </if>
+			FROM organization a
+			WHERE 1=1				
+				AND a.og_seq = #{seq}
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		</if>
+	</select>
+</mapper>

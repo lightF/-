@@ -1,0 +1,2477 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.BreakdownMapper">
+
+	<!-- 리스트 정렬 -->
+	<sql id="order"> 
+	<if test="column == null or column == ''"> ORDER BY seq DESC </if>
+	<if test="column">ORDER BY ${column} ${order} </if>	
+	</sql>
+	
+	<!-- 페이징 -->
+	<sql id="paging"> LIMIT #{start_num}, #{row_num} </sql>
+	
+	<!-- 검색용 사업단 시퀀스 가져오기 -->
+	<select id="select_organize_seq" resultType="HashMap">
+		SELECT
+			og_seq
+		FROM organization WHERE 1=1
+			AND og_group = 1
+			AND og_name LIKE '%${og_name}%'
+	</select>
+	
+	<!-- 검색용 부품 시퀀스 가져오기 -->
+	<select id="select_system_seq" resultType="HashMap">
+		SELECT
+			seq AS sys_seq
+		FROM system WHERE 1=1
+			AND name LIKE '%${sys_name}%'
+	</select>
+	
+	<!-- 검색용 예산과목 시퀀스 가져오기 -->
+	<select id="select_budget_seq" resultType="HashMap">
+		SELECT
+			seq AS bg_seq		
+		FROM budget WHERE 1=1
+			AND name IN ('재료비', 'KHC예비품')
+			<if test="bg_name"> AND name LIKE '%${bg_name}%' </if>
+	</select>
+	
+	<!-- 고장접수관리 리스트 개수 가져오기 -->
+	<select id="select_breakdown_cnt" resultType="int">
+		SELECT
+			COUNT(a.bk_seq)
+		FROM breakdown a
+		LEFT JOIN device b ON a.dc_seq = b.dc_seq
+		LEFT JOIN personnel c ON a.per_seq = c.per_seq
+		WHERE 1=1
+			<if test="section == 9"> 
+				<if test="start_date == null or start_date == ''"> AND a.bk_receipt >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 2 MONTH), '%Y%m%d%H%i%s') </if>
+				<if test="start_date != null and start_date != ''">
+				AND a.bk_receipt >= DATE_FORMAT(#{start_date}, '%Y%m%d000000')
+				AND a.bk_receipt &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959')
+				</if>
+			</if>
+			<if test="section == null or section == ''">
+				<if test="start_date != null and start_date != ''"> AND a.bk_receipt >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.bk_receipt &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			</if>
+			<if test="dc_location != null and dc_location != ''"> AND b.dc_location LIKE '%${dc_location}%' </if>
+			<if test="bk_code != null and bk_code != ''"> AND a.bk_code LIKE '%${bk_code}%' </if>
+			<if test="bk_standard != null and bk_standard != ''"> AND a.bk_standard = #{bk_standard} </if>
+			<if test="dc_name != null and dc_name != ''"> AND b.dc_name LIKE '%${dc_name}%' </if>
+			<if test="auth == 1"> AND c.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+	</select>
+	
+	<!-- 고장접수관리 리스트 가져오기 -->
+	<select id="select_breakdown_list" resultType="HashMap">
+		SELECT
+			a.bk_seq AS seq, a.bk_code, a.bk_standard, a.bk_receipt, a.bk_start, a.bk_hour,
+		    b.dc_name, b.dc_location, a.update_date
+		FROM breakdown a
+		LEFT JOIN device b ON a.dc_seq = b.dc_seq
+		LEFT JOIN personnel c ON a.per_seq = c.per_seq
+		WHERE 1=1
+			<if test="section == 9"> 
+				<if test="start_date == null or start_date == ''"> AND a.bk_receipt >= DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 2 MONTH), '%Y%m%d%H%i%s') </if>
+				<if test="start_date != null and start_date != ''">
+				AND a.bk_receipt >= DATE_FORMAT(#{start_date}, '%Y%m%d000000')
+				AND a.bk_receipt &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959')
+				</if>
+			</if>
+			<if test="section == null or section == ''">
+				<if test="start_date != null and start_date != ''"> AND a.bk_receipt >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.bk_receipt &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			</if>
+			<if test="dc_location != null and dc_location != ''"> AND b.dc_location LIKE '%${dc_location}%' </if>
+			<if test="bk_code != null and bk_code != ''"> AND a.bk_code LIKE '%${bk_code}%' </if>
+			<if test="bk_standard != null and bk_standard != ''"> AND a.bk_standard = #{bk_standard} </if>
+			<if test="dc_name != null and dc_name != ''"> AND b.dc_name LIKE '%${dc_name}%' </if>
+			<if test="auth == 1"> AND c.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 고장접수관리 추가/수정 -->
+	<insert id="insert_breakdown">
+		INSERT INTO breakdown
+		(
+			bk_seq
+			, bk_code
+			<if test="bk_number != null and bk_number != ''">, bk_number</if>
+			<if test="dc_seq != null and dc_seq != ''">, dc_seq</if>
+			<if test="bk_faulty != null and bk_faulty != ''">, bk_faulty</if>
+			<if test="bk_receipt != null and bk_receipt != ''">, bk_receipt</if>
+			<if test="bk_start != null and bk_start != ''">, bk_start</if>
+			<if test="bk_finish != null and bk_finish != ''">, bk_finish</if>
+			<if test="bk_hour != null and bk_hour != ''">, bk_hour</if>
+			<if test="bk_cost != null and bk_cost != ''">, bk_cost</if>
+			<if test="bk_work != null and bk_work != ''">, bk_work</if>
+			<if test="bk_standard != null and bk_standard != ''">, bk_standard</if>
+			<if test="bk_process != null and bk_process != ''">, bk_process</if>
+			<if test="per_seq != null and per_seq != ''">, per_seq</if>
+			<if test="bk_unique != null and bk_unique != ''">, bk_unique</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			, IF(
+				#{bk_code} = '',
+				CONCAT(
+					<!-- 'F',--> 
+					DATE_FORMAT(NOW(), '%Y%m%d'),
+					(SELECT LPAD((SELECT IF(MAX(a.bk_seq) IS NULL, 1, MAX(a.bk_seq) + 1) FROM breakdown a WHERE 1=1 AND LEFT(a.create_date, 8) = DATE_FORMAT(NOW(), '%Y%m%d')), 6, 0))
+				),
+				#{bk_code}
+			)
+			<if test="bk_number != null and bk_number != ''">, #{bk_number}</if>
+			<if test="dc_seq != null and dc_seq != ''">, #{dc_seq}</if>
+			<if test="bk_faulty != null and bk_faulty != ''">, DATE_FORMAT(#{bk_faulty}, '%Y%m%d%H%i%s')</if>
+			<if test="bk_receipt != null and bk_receipt != ''">, DATE_FORMAT(#{bk_receipt}, '%Y%m%d%H%i%s')</if>
+			<if test="bk_start != null and bk_start != ''">, DATE_FORMAT(#{bk_start}, '%Y%m%d%H%i%s')</if>
+			<if test="bk_finish != null and bk_finish != ''">, DATE_FORMAT(#{bk_finish}, '%Y%m%d%H%i%s')</if>
+			<if test="bk_hour != null and bk_hour != ''">, #{bk_hour}</if>
+			<if test="bk_cost != null and bk_cost != ''">, #{bk_cost}</if>
+			<if test="bk_work != null and bk_work != ''">, #{bk_work}</if>
+			<if test="bk_standard != null and bk_standard != ''">, #{bk_standard}</if>
+			<if test="bk_process != null and bk_process != ''">, #{bk_process}</if>
+			<if test="per_seq != null and per_seq != ''">, #{per_seq}</if>
+			<if test="bk_unique != null and bk_unique != ''">, #{bk_unique}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>		
+		)
+		ON DUPLICATE KEY UPDATE
+			bk_seq = VALUES(bk_seq)
+			, bk_code = VALUES(bk_code)
+			<if test="bk_number != null and bk_number != ''">, bk_number = VALUES(bk_number)</if>
+			<if test="dc_seq != null and dc_seq != ''">, dc_seq = VALUES(dc_seq)</if>
+			<if test="bk_faulty != null and bk_faulty != ''">, bk_faulty = VALUES(bk_faulty)</if>
+			<if test="bk_receipt != null and bk_receipt != ''">, bk_receipt = VALUES(bk_receipt)</if>
+			<if test="bk_start != null and bk_start != ''">, bk_start = VALUES(bk_start)</if>
+			<if test="bk_finish != null and bk_finish != ''">, bk_finish = VALUES(bk_finish)</if>
+			<if test="bk_hour != null and bk_hour != ''">, bk_hour = VALUES(bk_hour)</if>
+			<if test="bk_cost != null and bk_cost != ''">, bk_cost = VALUES(bk_cost)</if>
+			<if test="bk_work != null and bk_work != ''">, bk_work = VALUES(bk_work)</if>
+			<if test="bk_standard != null and bk_standard != ''">, bk_standard = VALUES(bk_standard)</if>
+			<if test="bk_process != null and bk_process != ''">, bk_process = VALUES(bk_process)</if>
+			<if test="per_seq != null and per_seq != ''">, per_seq = VALUES(per_seq)</if>
+			<if test="bk_unique != null and bk_unique != ''">, bk_unique = VALUES(bk_unique)</if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(bk_seq) FROM breakdown 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND bk_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 고장접수관리 작업자 삭제 -->
+	<delete id="delete_breakdown_worker">
+		DELETE FROM breakdown_worker WHERE 1=1
+			AND bk_seq = #{seq}
+			<if test="bw_seq"> AND bw_seq NOT IN <foreach collection="multi.bw_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>		
+	</delete>
+	
+	<!-- 고장접수관리 구성부 삭제 -->
+	<delete id="delete_breakdown_compose">
+		DELETE FROM breakdown_compose WHERE 1=1
+			AND bk_seq = #{seq}
+			<if test="bc_seq"> AND bc_seq NOT IN <foreach collection="multi.bc_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 고장접수관리 작업자 추가/수정 -->
+	<insert id="insert_breakdown_worker">
+		INSERT INTO breakdown_worker
+		(
+			bw_seq
+			, bk_seq
+			, per_seq
+			, bw_note
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.bw_seq" index="index" separator=",">
+		(
+			IF(${multi.bw_seq[index]} = 0, NULL, ${multi.bw_seq[index]})				
+			, ${seq}
+			, IF(${multi.per_seq2[index]} = 0, NULL, ${multi.per_seq2[index]})
+			, '${multi.bw_note[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			bw_seq = VALUES(bw_seq)
+			, bk_seq = VALUES(bk_seq)
+			, per_seq = VALUES(per_seq)
+			, bw_note = VALUES(bw_note)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 고장접수관리 구성부 추가/수정 -->
+	<insert id="insert_breakdown_compose">
+		INSERT INTO breakdown_compose
+		(
+			bc_seq
+			, bk_seq
+			, bc_compose
+			, bc_status
+			, bc_cause
+			, bc_result
+			, bc_note
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.bc_seq" index="index" separator=",">
+		(
+			IF(${multi.bc_seq[index]} = 0, NULL, ${multi.bc_seq[index]})				
+			, ${seq}	
+			, '${multi.bc_compose[index]}'
+			, '${multi.bc_status[index]}'		
+			, '${multi.bc_cause[index]}'
+			, '${multi.bc_result[index]}'
+			, '${multi.bc_note[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			bc_seq = VALUES(bc_seq)
+			, bk_seq = VALUES(bk_seq)
+			, bc_compose = VALUES(bc_compose)
+			, bc_status = VALUES(bc_status)
+			, bc_cause = VALUES(bc_cause)
+			, bc_result = VALUES(bc_result)
+			, bc_note = VALUES(bc_note)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 고장접수관리 저장품내역 삭제 -->
+	<delete id="delete_breakdown_storage">
+		DELETE a
+		FROM breakdown_storage a
+		LEFT JOIN breakdown_compose b ON a.bc_seq = b.bc_seq
+		WHERE 1=1
+			AND b.bk_seq = #{seq}
+			<if test="bs_seq"> AND a.bs_seq NOT IN <foreach collection="multi.bs_seq1" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 고장접수관리 KHC예비품/재료비 삭제 -->
+	<delete id="delete_breakdown_spare">
+		DELETE a
+		FROM breakdown_spare a
+		LEFT JOIN breakdown_compose b ON a.bc_seq = b.bc_seq
+		WHERE 1=1
+			AND b.bk_seq = #{seq}
+			<if test="bs_seq"> AND a.bs_seq NOT IN <foreach collection="multi.bs_seq2" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 고장접수관리 저장품내역 추가/수정 -->
+	<insert id="insert_breakdown_storage">
+		INSERT INTO breakdown_storage
+		(
+			bs_seq
+			, bc_seq
+			, bs_process
+			, bs_old
+			, bs_new
+			, pt_seq
+			, bs_count
+			, bs_price
+			, bs_note
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.bs_seq1" index="index" separator=",">
+		(
+			IF(${multi.bs_seq1[index]} = 0, NULL, ${multi.bs_seq1[index]})	
+			, IF(${multi.bc_seq1[index]} = 0, NULL, ${multi.bc_seq1[index]})
+			, ${multi.bs_process1[index]}
+			, ${multi.bs_old1[index]}
+			, ${multi.bs_new1[index]}
+			, IF(${multi.pt_seq1[index]} = 0, NULL, ${multi.pt_seq1[index]})
+			, ${multi.bs_count1[index]}
+			, ${multi.bs_price1[index]}
+			, '${multi.bs_note1[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			bs_seq = VALUES(bs_seq)
+			, bc_seq = VALUES(bc_seq)
+			, bs_process = VALUES(bs_process)
+			, bs_old = VALUES(bs_old)
+			, bs_new = VALUES(bs_new)
+			, pt_seq = VALUES(pt_seq)
+			, bs_count = VALUES(bs_count)
+			, bs_price = VALUES(bs_price)
+			, bs_note = VALUES(bs_note)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 고장접수관리 KHC예비품/재료비 추가/수정 -->
+	<insert id="insert_breakdown_spare">
+		INSERT INTO breakdown_spare
+		(
+			bs_seq
+			, bc_seq
+			, bs_process
+			, bs_old
+			, bs_new
+			, pt_seq
+			, bs_count
+			, bs_price
+			, bs_note
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.bs_seq2" index="index" separator=",">
+		(
+			IF(${multi.bs_seq2[index]} = 0, NULL, ${multi.bs_seq2[index]})	
+			, IF(${multi.bc_seq2[index]} = 0, NULL, ${multi.bc_seq2[index]})
+			, ${multi.bs_process2[index]}
+			, ${multi.bs_old2[index]}
+			, ${multi.bs_new2[index]}
+			, IF(${multi.pt_seq2[index]} = 0, NULL, ${multi.pt_seq2[index]})
+			, ${multi.bs_count2[index]}
+			, ${multi.bs_price2[index]}
+			, '${multi.bs_note2[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			bs_seq = VALUES(bs_seq)
+			, bc_seq = VALUES(bc_seq)
+			, bs_process = VALUES(bs_process)
+			, bs_old = VALUES(bs_old)
+			, bs_new = VALUES(bs_new)
+			, pt_seq = VALUES(pt_seq)
+			, bs_count = VALUES(bs_count)
+			, bs_price = VALUES(bs_price)
+			, bs_note = VALUES(bs_note)
+			, update_date = VALUES(update_date)		
+	</insert>
+	
+	<!-- 고장접수관리 가져오기 -->
+	<select id="select_breakdown" resultType="HashMap">
+		SELECT
+			a.bk_seq AS seq, a.bk_code, a.bk_number, a.dc_seq, b.dc_name, b.dc_location,
+		    a.bk_faulty, a.bk_receipt, a.bk_start, a.bk_finish, a.bk_hour, a.bk_cost,
+		    a.bk_work, a.bk_standard, a.bk_process, a.per_seq, c.per_name, a.bk_unique
+		FROM breakdown a
+		LEFT JOIN device b ON a.dc_seq = b.dc_seq
+		LEFT JOIN personnel c ON a.per_seq = c.per_seq
+		WHERE 1=1
+			AND a.bk_seq = #{seq}
+	</select>
+	
+	<!-- 고장접수관리 작업자 가져오기 -->
+	<select id="select_breakdown_worker" resultType="HashMap">
+		SELECT
+			a.bw_seq, a.bk_seq, a.per_seq, a.bw_note, b.per_name as per_seq2_name
+		FROM breakdown_worker a
+		LEFT JOIN personnel b
+			ON a.per_seq = b.per_seq
+		WHERE 1=1
+			AND a.bk_seq = #{seq}
+		ORDER BY a.bw_seq ASC
+	</select>
+	
+	<!-- 고장접수관리 구성부 가져오기 -->
+	<select id="select_breakdown_compose" resultType="HashMap">
+		SELECT
+			bc_seq, bk_seq, bc_compose, bc_status,
+		    bc_cause, bc_result, bc_note
+		FROM breakdown_compose
+		WHERE 1=1
+			AND bk_seq = #{seq}
+		ORDER BY bc_seq ASC
+	</select>
+	
+	<!-- 고장접수관리 저장품내역 가져오기 -->
+	<select id="select_breakdown_storage" resultType="HashMap">
+		SELECT
+			a.bs_seq AS bs_seq1, a.bc_seq AS bc_seq1, a.bs_process AS bs_process1, a.bs_old AS bs_old1,
+		    a.bs_new AS bs_new1, a.pt_seq AS pt_seq1, c.pt_name as pt_seq1_name, a.bs_count AS bs_count1, a.bs_price AS bs_price1, 
+		    a.bs_arrival AS bs_arrival1, a.bs_note AS bs_note1
+		FROM breakdown_storage a
+		LEFT JOIN breakdown_compose b ON a.bc_seq = b.bc_seq
+		LEFT JOIN part c ON a.pt_seq = c.pt_seq
+		WHERE 1=1
+			AND b.bk_seq = #{seq}
+		ORDER BY a.bs_seq ASC		
+	</select>
+	
+	<!-- 고장접수관리 KHC예비품/재료비 가져오기 -->
+	<select id="select_breakdown_spare" resultType="HashMap">
+		SELECT
+			a.bs_seq AS bs_seq2, a.bc_seq AS bc_seq2, a.bs_process AS bs_process2, a.bs_old AS bs_old2,
+		    a.bs_new AS bs_new2, a.pt_seq AS pt_seq2, c.pt_name as pt_seq2_name, a.bs_count AS bs_count2, a.bs_price AS bs_price2, 
+		    a.bs_arrival AS bs_arrival2, a.bs_note AS bs_note2
+		FROM breakdown_spare a
+		LEFT JOIN breakdown_compose b ON a.bc_seq = b.bc_seq
+		LEFT JOIN part c ON a.pt_seq = c.pt_seq
+		WHERE 1=1
+			AND b.bk_seq = #{seq}
+		ORDER BY a.bs_seq ASC
+	</select>
+	
+	<!-- 고장접수관리 시퀀스 사용유무 확인 -->
+	<select id="select_breakdown_status" resultType="int">
+		SELECT
+			CASE COUNT(wrk_seq)
+				WHEN 0 THEN 1001
+				ELSE 2001
+			END
+		FROM work WHERE 1=1 AND bk_seq = #{seq}
+	</select>
+	
+	<!-- 고장접수관리 삭제하기 -->
+	<delete id="delete_breakdown">
+		<if test="section == 1">
+		DELETE a
+		FROM breakdown_spare a
+		LEFT JOIN breakdown_compose b ON a.bc_seq = b.bc_seq
+		WHERE 1=1 AND b.bk_seq = #{seq}
+		</if>
+		
+		<if test="section == 2">
+		DELETE a
+		FROM breakdown_storage a
+		LEFT JOIN breakdown_compose b ON a.bc_seq = b.bc_seq
+		WHERE 1=1 AND b.bk_seq = #{seq}
+		</if>
+		
+		<if test="section == 3">
+		DELETE FROM breakdown_compose WHERE 1=1 AND bk_seq = #{seq}
+		</if>
+		
+		<if test="section == 4">
+		DELETE FROM breakdown_worker WHERE 1=1 AND bk_seq = #{seq}
+		</if>
+		
+		<if test="section == 5">
+		DELETE FROM breakdown WHERE 1=1 AND bk_seq = #{seq}
+		</if>
+	</delete>
+	
+	<!-- 저장품 또는 예비품 팝업 리스트 개수 가져오기 -->
+	<select id="select_part_cnt" resultType="int">
+		<!-- 저장품 -->
+		<if test="section == 10">
+		SELECT
+				COUNT(tb1.ol_seq)
+			FROM order_log tb1
+			LEFT JOIN
+			(
+			    SELECT
+			        MAX(a.ol_seq) AS ol_seq,
+			        CASE b.og_level
+			        	WHEN 3 THEN a.og_seq
+			        	ELSE b.og_pcode
+			        END AS group_seq
+			    FROM order_log a
+			    LEFT JOIN organization b ON a.og_seq = b.og_seq
+			    WHERE 1=1
+			    GROUP BY a.sr_seq, a.og_seq, a.pt_seq 
+			)tb2 ON tb1.ol_seq = tb2.ol_seq
+			LEFT JOIN part tb3 ON tb1.pt_seq = tb3.pt_seq
+			LEFT JOIN system tb4 ON tb3.sys_seq = tb4.seq
+			LEFT JOIN organization tb5 ON tb1.og_seq = tb5.og_seq
+			WHERE 1=1				
+			    AND tb2.ol_seq IS NOT NULL
+			    <if test="ol_total == null or ol_total == ''"> AND tb1.ol_total > 0 </if>
+			    <if test="ol_total != null and ol_total != ''">  AND tb1.ol_total >= #{ol_total} </if>
+			    <if test="og_name != null and og_name != ''"> AND tb5.og_name LIKE '%${og_name}%' </if>
+			    <if test="pt_code != null and pt_code != ''"> AND tb3.pt_code LIKE '%${pt_code}%' </if>
+				<if test="sys_name != null and sys_name != ''"> AND tb4.name LIKE '%${sys_name}%' </if>
+				<if test="pt_name != null and pt_name != ''"> AND tb3.pt_name LIKE '%${pt_name}%' </if>
+				<if test="auth == 3"> AND tb2.group_seq = #{auth_seq} </if>	
+		</if>
+		
+		<!-- 예비품 -->
+		<if test="section == 11">
+		SELECT
+			COUNT(a.pt_seq)
+		FROM part a
+		LEFT JOIN device_standard1 b ON a.ds_seq = b.ds_seq
+		WHERE 1=1
+			<if test="none_budget"> AND a.bg_seq = 0 </if>
+			<if test="budget"> AND a.bg_seq IN <foreach collection="budget" item="item" open="(" separator="," close=")"> #{item.bg_seq} </foreach> </if>
+			<if test="pt_code != null and pt_code != ''"> AND a.pt_code LIKE '%${pt_code}%' </if>
+			<if test="ds_name != null and ds_name != ''"> AND b.ds_name LIKE '%${ds_name}%' </if>
+			<if test="pt_name != null and pt_name != ''"> AND a.pt_name LIKE '%${pt_name}%' </if>
+			<if test="pt_spec != null and pt_spec != ''"> AND a.pt_spec LIKE '%${pt_spec}%' </if>
+		</if>
+	</select>
+	
+	<!-- 저장품 / 예비품 팝업 리스트 가져오기 -->
+	<select id="select_part_list" resultType="HashMap">
+		<if test="section == 10">
+			SELECT
+				10 AS section, tb1.ol_seq AS seq, tb1.og_seq, tb5.og_name,
+				tb1.pt_seq, tb3.pt_code, tb3.sys_seq, tb4.name AS sys_name,
+				tb3.pt_name, tb1.ol_total AS or_total
+			FROM order_log tb1
+			LEFT JOIN
+			(
+			   SELECT
+			        MAX(a.ol_seq) AS ol_seq,
+			        CASE b.og_level
+			        	WHEN 3 THEN a.og_seq
+			        	ELSE b.og_pcode
+			        END AS group_seq
+			    FROM order_log a
+			    LEFT JOIN organization b ON a.og_seq = b.og_seq
+			    WHERE 1=1
+			    GROUP BY a.sr_seq, a.og_seq, a.pt_seq 
+			)tb2 ON tb1.ol_seq = tb2.ol_seq
+			LEFT JOIN part tb3 ON tb1.pt_seq = tb3.pt_seq
+			LEFT JOIN system tb4 ON tb3.sys_seq = tb4.seq
+			LEFT JOIN organization tb5 ON tb1.og_seq = tb5.og_seq
+			WHERE 1=1				
+			    AND tb2.ol_seq IS NOT NULL
+			    <if test="ol_total == null or ol_total == ''"> AND tb1.ol_total > 0 </if>
+			    <if test="ol_total != null and ol_total != ''">  AND tb1.ol_total >= #{ol_total} </if>
+			    <if test="og_name != null and og_name != ''"> AND tb5.og_name LIKE '%${og_name}%' </if>
+			    <if test="pt_code != null and pt_code != ''"> AND tb3.pt_code LIKE '%${pt_code}%' </if>
+				<if test="sys_name != null and sys_name != ''"> AND tb4.name LIKE '%${sys_name}%' </if>
+				<if test="pt_name != null and pt_name != ''"> AND tb3.pt_name LIKE '%${pt_name}%' </if>
+				<if test="auth == 3"> AND tb2.group_seq = #{auth_seq} </if>
+			<include refid="order"></include>
+			<include refid="paging"></include>
+		</if>
+		
+		<if test="section == 11">
+		SELECT
+			11 AS section, a.pt_seq AS seq, a.bg_seq, a.pt_code, b.ds_name, a.pt_name, a.pt_spec
+		FROM part a
+		LEFT JOIN device_standard1 b ON a.ds_seq = b.ds_seq
+		WHERE 1=1
+			<if test="none_budget"> AND a.bg_seq = 0 </if>
+			<if test="budget"> AND a.bg_seq IN <foreach collection="budget" item="item" open="(" separator="," close=")"> #{item.bg_seq} </foreach> </if>
+			<if test="pt_code != null and pt_code != ''"> AND a.pt_code LIKE '%${pt_code}%' </if>
+			<if test="ds_name != null and ds_name != ''"> AND b.ds_name LIKE '%${ds_name}%' </if>
+			<if test="pt_name != null and pt_name != ''"> AND a.pt_name LIKE '%${pt_name}%' </if>
+			<if test="pt_spec != null and pt_spec != ''"> AND a.pt_spec LIKE '%${pt_spec}%' </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+		</if>
+	</select>
+	
+	<!-- 고장조치관리 리스트 개수 가져오기 -->
+	<select id="select_action_cnt" resultType="int">
+		SELECT
+			COUNT(t.og_seq)
+		FROM
+		(
+			SELECT
+				a.og_seq
+			FROM action a
+			LEFT JOIN organization b ON a.og_seq = b.og_seq
+			WHERE 1=1
+				AND a.og_seq IS NOT NULL
+				<if test="start_date != null and start_date != ''"> AND cast(a.at_daily as unsigned) >= cast(date_format(#{start_date}, '%Y%m%d') as unsigned) </if>
+				<if test="end_date != null and end_date != ''"> AND cast(a.at_daily as unsigned) &lt;= cast(date_format(#{end_date}, '%Y%m%d') as unsigned) </if>
+				<if test="og_name != null and og_name != ''"> AND a.og_seq = #{og_name} </if>
+				<if test="at_division != null and at_division != ''"> AND a.at_division = #{at_division} </if>
+				<if test="prc_seq != null and prc_seq != ''"> AND a.prc_seq = #{prc_seq} </if>
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+			GROUP BY a.og_seq, a.at_daily, a.at_division
+		) t
+	</select>
+	
+	<!-- 고장조치관리 리스트 가져오기 -->
+	<select id="select_action_list" resultType="HashMap">
+		SELECT
+			a.og_seq AS seq, a.og_seq, b.og_name, a.at_daily, a.at_division, COUNT(a.at_seq) AS total
+		FROM action a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		WHERE 1=1
+			AND a.og_seq IS NOT NULL
+			<if test="start_date != null and start_date != ''"> AND cast(a.at_daily as unsigned) >= cast(date_format(#{start_date}, '%Y%m%d') as unsigned) </if>
+			<if test="end_date != null and end_date != ''"> AND cast(a.at_daily as unsigned) &lt;= cast(date_format(#{end_date}, '%Y%m%d') as unsigned) </if>
+			<if test="og_name != null and og_name != ''"> AND a.og_seq = #{og_name} </if>
+			<if test="at_division != null and at_division != ''"> AND a.at_division = #{at_division} </if>
+			<if test="prc_seq != null and prc_seq != ''"> AND a.prc_seq = #{prc_seq} </if>
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		GROUP BY a.og_seq, a.at_daily, a.at_division
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 고장조치관리 리스트 처리완료/미처리 -->
+	<select id="select_action_count" resultType="HashMap">		
+		SELECT
+			a.og_seq AS seq, a.og_seq, b.og_name, a.at_daily, a.at_division,
+			<if test="action_num == 1"> COUNT(a.at_seq) AS finish </if>
+			<if test="action_num == 2"> COUNT(a.at_seq) AS not_take </if>
+		FROM action a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		WHERE 1=1
+			AND a.at_action = #{action_num}
+			AND a.og_seq IS NOT NULL
+			<if test="start_date != null and start_date != ''"> AND cast(a.at_daily as unsigned) >= cast(date_format(#{start_date}, '%Y%m%d') as unsigned) </if>
+			<if test="end_date != null and end_date != ''"> AND cast(a.at_daily as unsigned) &lt;= cast(date_format(#{end_date}, '%Y%m%d') as unsigned) </if>
+			<if test="og_name != null and og_name != ''"> AND a.og_seq = #{og_name} </if>
+			<if test="at_division != null and at_division != ''"> AND a.at_division = #{at_division} </if>
+			<if test="prc_seq != null and prc_seq != ''"> AND a.prc_seq = #{prc_seq} </if>
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		GROUP BY a.og_seq, a.at_daily, a.at_division
+		<include refid="order"></include>
+		<include refid="paging"></include>		
+	</select>
+	
+	<!-- 고장조치 보고서 -->
+	<select id="select_action_report" resultType="HashMap">
+		SELECT 
+			a.og_seq, b.og_name, a.sys_seq, a.at_place, a.at_device,
+			a.at_occur, a.at_receipt, a.at_history, a.at_finish,
+			a.at_content, a.at_reason, a.at_repair,
+			DATE_FORMAT(SEC_TO_TIME(TIMESTAMPDIFF(SECOND, a.at_occur, a.at_receipt)), '%H:%i') AS at_time
+		FROM action a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		WHERE 1=1
+			AND a.at_daily = #{at_daily}
+			AND a.og_seq = #{og_seq}
+			AND a.at_division = #{at_division}
+	</select>
+	
+	<!-- 고장조치관리 추가/수정 -->
+	<insert id="insert_action">
+		INSERT INTO action
+		(
+		    at_seq
+		    <if test="og_seq != null and og_seq != ''">, og_seq</if>
+		    <if test="at_date != null and at_date != ''">, at_date</if>
+		    <if test="at_division != null and at_division != ''">, at_division</if>
+		    <if test="brc_seq != null and brc_seq != ''">, brc_seq</if>
+		    <if test="at_place != null and at_place != ''">, at_place</if>
+		    <if test="sys_seq != null and sys_seq != ''">, sys_seq</if>
+		    <if test="at_device != null and at_device != ''">, at_device</if>
+		    <if test="at_occur != null and at_occur != ''">, at_occur</if>
+		    <if test="at_receipt != null and at_receipt != ''">, at_receipt</if>
+		    <if test="at_receipt != null and at_receipt != ''">, at_daily</if>
+		    <if test="at_history != null and at_history != ''">, at_history</if>
+		    <if test="at_action != null and at_action != ''">, at_action</if>
+		    <if test="prc_seq != null and prc_seq != ''">, prc_seq</if>
+		    <if test="at_manager != null and at_manager != ''">, at_manager</if>
+		    <if test="at_start != null and at_start != ''">, at_start</if>
+		    <if test="at_finish != null and at_finish != ''">, at_finish</if>
+		    <if test="at_content != null and at_content != ''">, at_content</if>
+		    <if test="at_part != null and at_part != ''">, at_part</if>
+		    <if test="at_reason != null and at_reason != ''">, at_reason</if>
+		    <if test="at_repair != null and at_repair != ''">, at_repair</if>
+		    , at_minute
+		    <if test="at_occur != null and at_occur != ''">, at_year</if>
+		    <if test="at_occur != null and at_occur != ''">, at_month</if>
+		    <if test="per_seq != null and per_seq != ''">, at_writer</if>
+		    , update_date
+		    <if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+		    IF(#{seq} = '', NULL, #{seq})
+		    <if test="og_seq != null and og_seq != ''">, #{og_seq}</if>
+		    <if test="at_date != null and at_date != ''">, DATE_FORMAT(#{at_date}, '%Y%m%d%H%i%s')</if>
+		    <if test="at_division != null and at_division != ''">, #{at_division}</if>
+		    <if test="brc_seq != null and brc_seq != ''">, #{brc_seq}</if>
+		    <if test="at_place != null and at_place != ''">, #{at_place}</if>
+		    <if test="sys_seq != null and sys_seq != ''">, #{sys_seq}</if>
+		    <if test="at_device != null and at_device != ''">, #{at_device}</if>
+		    <if test="at_occur != null and at_occur != ''">, DATE_FORMAT(#{at_occur}, '%Y%m%d%H%i%s')</if>
+		    <if test="at_receipt != null and at_receipt != ''">, DATE_FORMAT(#{at_receipt}, '%Y%m%d%H%i%s')</if>
+		    <if test="at_receipt != null and at_receipt != ''">, DATE_FORMAT(#{at_receipt}, '%Y%m%d')</if>
+		    <if test="at_history != null and at_history != ''">, #{at_history}</if>
+		    <if test="at_action != null and at_action != ''">, #{at_action}</if>
+		    <if test="prc_seq != null and prc_seq != ''">, #{prc_seq}</if>
+		    <if test="at_manager != null and at_manager != ''">, #{at_manager}</if>
+		    <if test="at_start != null and at_start != ''">, DATE_FORMAT(#{at_start}, '%Y%m%d%H%i%s')</if>
+		    <if test="at_finish != null and at_finish != ''">, DATE_FORMAT(#{at_finish}, '%Y%m%d%H%i%s')</if>
+		    <if test="at_content != null and at_content != ''">, #{at_content}</if>
+		    <if test="at_part != null and at_part != ''">, #{at_part}</if>
+		    <if test="at_reason != null and at_reason != ''">, #{at_reason}</if>
+		    <if test="at_repair != null and at_repair != ''">, #{at_repair}</if>
+		    , CASE
+		    	WHEN #{at_occur} = '' THEN 0
+		    	WHEN #{at_finish} = '' THEN 0
+		    	ELSE
+		    		IFNULL(TIMESTAMPDIFF(MINUTE, DATE_FORMAT(#{at_occur}, '%Y%m%d%H%i%s'), DATE_FORMAT(#{at_finish}, '%Y%m%d%H%i%s')), 0)
+		      END		    
+		    <if test="at_occur != null and at_occur != ''">, DATE_FORMAT(#{at_occur}, '%Y')</if>
+		    <if test="at_occur != null and at_occur != ''">, DATE_FORMAT(#{at_occur}, '%m')</if>
+		    <if test="per_seq != null and per_seq != ''">, #{per_seq}</if>
+		    , DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		    <if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			at_seq = VALUES(at_seq)
+		    <if test="og_seq != null and og_seq != ''">, og_seq = VALUES(og_seq)</if>
+		    <if test="at_date != null and at_date != ''">, at_date = VALUES(at_date)</if>
+		    <if test="at_division != null and at_division != ''">, at_division = VALUES(at_division)</if>
+		    <if test="brc_seq != null and brc_seq != ''">, brc_seq = VALUES(brc_seq)</if>
+		    <if test="at_place != null and at_place != ''">, at_place = VALUES(at_place)</if>
+		    <if test="sys_seq != null and sys_seq != ''">, sys_seq = VALUES(sys_seq)</if>
+		    <if test="at_device != null and at_device != ''">, at_device = VALUES(at_device)</if>
+		    <if test="at_occur != null and at_occur != ''">, at_occur = VALUES(at_occur)</if>
+		    <if test="at_receipt != null and at_receipt != ''">, at_receipt = VALUES(at_receipt)</if>
+		    <if test="at_receipt != null and at_receipt != ''">, at_daily = VALUES(at_daily)</if>
+		    <if test="at_history != null and at_history != ''">, at_history = VALUES(at_history)</if>
+		    <if test="at_action != null and at_action != ''">, at_action = VALUES(at_action)</if>
+		    <if test="prc_seq != null and prc_seq != ''">, prc_seq = VALUES(prc_seq)</if>
+		    <if test="at_manager != null and at_manager != ''">, at_manager = VALUES(at_manager)</if>
+		    <if test="at_start != null and at_start != ''">, at_start = VALUES(at_start)</if>
+		    <if test="at_finish != null and at_finish != ''">, at_finish = VALUES(at_finish)</if>
+		    <if test="at_content != null and at_content != ''">, at_content = VALUES(at_content)</if>
+		    <if test="at_part != null and at_part != ''">, at_part = VALUES(at_part)</if>
+		    <if test="at_reason != null and at_reason != ''">, at_reason = VALUES(at_reason)</if>
+		    <if test="at_repair != null and at_repair != ''">, at_repair = VALUES(at_repair)</if>
+		    , at_minute = VALUES(at_minute)
+		    <if test="at_occur != null and at_occur != ''">, at_year = VALUES(at_year)</if>
+		    <if test="at_occur != null and at_occur != ''">, at_month = VALUES(at_month)</if>
+		    <if test="per_seq != null and per_seq != ''">, at_writer = VALUES(at_writer)</if>
+		    , update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 고장조치관리 상세 정보 -->
+	<select id="select_action" resultType="HashMap">
+		SELECT
+			a.at_seq AS seq, a.og_seq, b.og_name, a.at_date, a.at_division, a.brc_seq, a.at_place, 
+			a.sys_seq, a.at_device, a.at_occur, a.at_receipt, a.at_history, a.at_action,
+			a.prc_seq, a.at_manager, a.at_start, a.at_finish, a.at_content, a.at_part, 
+			a.at_reason, a.at_repair, c.per_name as at_repair_name
+		FROM action a
+		LEFT JOIN organization b
+			ON a.og_seq = b.og_seq
+		LEFT JOIN personnel c
+			ON a.at_repair = c.per_seq
+		WHERE 1=1
+			AND a.at_seq = #{seq}
+	</select>
+	
+	<!-- 고장조치 리스트 -->
+	<select id="select_action_date" resultType="HashMap">
+		SELECT
+			a.at_seq AS seq, a.at_action, b.og_name, a.sys_seq,
+			a.at_place, a.at_device, a.at_receipt, a.at_history,
+			a.at_content, c.per_name
+		FROM action a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		LEFT JOIN personnel c ON a.at_writer = c.per_seq
+		WHERE 1=1
+			AND a.at_daily = #{at_daily}
+			AND a.og_seq = #{og_seq}
+			AND a.at_division = #{at_division}
+		<include refid="order"></include>
+	</select>
+	
+	<!-- 고장조치관리 삭제 -->
+	<delete id="delete_action">
+		DELETE FROM action WHERE 1=1 AND at_seq = #{seq}
+	</delete>
+	
+	<!-- 당직일지 리스트 개수 가져오기 -->
+	<select id="select_shift_cnt" resultType="int">
+		SELECT
+			COUNT(*)
+		FROM
+		(
+			SELECT
+				a.sh_seq AS seq, a.og_seq, b.og_name, a.sh_date, a.sh_type,
+				(SELECT COUNT(tb.sh_seq) FROM shift tb WHERE 1=1 AND tb.og_seq = a.og_seq AND tb.sh_date = a.sh_date AND tb.sh_type = a.sh_type) AS sh_count
+			FROM shift a
+			LEFT JOIN organization b ON a.og_seq = b.og_seq
+			WHERE 1=1
+				<if test="start_date != null and start_date != ''"> AND a.at_receipt >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+				<if test="end_date != null and end_date != ''"> AND a.at_receipt &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+				<if test="og_name != null and og_name != ''"> AND a.og_seq = #{og_name} </if>
+				<if test="sh_type != null and sh_type != ''"> AND a.sh_type = #{sh_type} </if>
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+			GROUP BY a.og_seq, a.sh_date, a.sh_type
+		) a
+	</select>
+	
+	<!-- 당직일지 리스트 가져오기 -->
+	<select id="select_shift_list" resultType="HashMap">
+		SELECT
+			a.sh_seq AS seq, a.og_seq, b.og_name, a.sh_date, a.sh_type,
+			(SELECT COUNT(tb.sh_seq) FROM shift tb WHERE 1=1 AND tb.og_seq = a.og_seq AND tb.sh_date = a.sh_date AND tb.sh_type = a.sh_type) AS sh_count
+		FROM shift a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.at_receipt >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.at_receipt &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="og_name != null and og_name != ''"> AND a.og_seq = #{og_name} </if>
+			<if test="sh_type != null and sh_type != ''"> AND a.sh_type = #{sh_type} </if>
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		GROUP BY a.og_seq, a.sh_date, a.sh_type
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 당직일지 추가/수정 -->
+	<insert id="insert_shift">
+		INSERT INTO shift
+		(
+			sh_seq
+			<if test="og_seq != null and og_seq != ''">, og_seq</if>
+			<if test="sh_type != null and sh_type != ''">, sh_type</if>
+			<if test="sh_date != null and sh_date != ''">, sh_date</if>
+			<if test="sh_date != null and sh_date != ''">, sh_daily</if>
+			<if test="sh_etc != null and sh_etc != ''">, sh_etc</if>
+			<if test="sh_weather != null and sh_weather != ''">, sh_weather</if>
+			<if test="sh_temp != null and sh_temp != ''">, sh_temp</if>
+			<if test="sh_wind != null and sh_wind != ''">, sh_wind</if>
+			<if test="sh_humid != null and sh_humid != ''">, sh_humid</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="og_seq != null and og_seq != ''">, #{og_seq}</if>
+			<if test="sh_type != null and sh_type != ''">, #{sh_type}</if>			
+			<if test="sh_date != null and sh_date != ''">
+			, CASE #{sh_date}
+			  	WHEN '' THEN 0
+				ELSE DATE_FORMAT(#{sh_date}, '%Y%m%d%H%i%s')
+			  END
+			</if>
+			<if test="sh_date != null and sh_date != ''">
+			, CASE #{sh_date}
+			  	WHEN '' THEN 0
+				ELSE DATE_FORMAT(#{sh_date}, '%Y%m%d')
+			  END
+			</if>
+			<if test="sh_etc != null and sh_etc != ''">, #{sh_etc}</if>
+			<if test="sh_weather != null and sh_weather != ''">, #{sh_weather}</if>
+			<if test="sh_temp != null and sh_temp != ''">, #{sh_temp}</if>
+			<if test="sh_wind != null and sh_wind != ''">, #{sh_wind}</if>
+			<if test="sh_humid != null and sh_humid != ''">, #{sh_humid}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			sh_seq = VALUES(sh_seq)
+			<if test="og_seq != null and og_seq != ''">, og_seq = VALUES(og_seq)</if>
+			<if test="sh_type != null and sh_type != ''">, sh_type = VALUES(sh_type)</if>
+			<if test="sh_date != null and sh_date != ''">, sh_date = VALUES(sh_date)</if>
+			<if test="sh_date != null and sh_date != ''">, sh_daily = VALUES(sh_daily)</if>
+			<if test="sh_etc != null and sh_etc != ''">, sh_etc = VALUES(sh_etc)</if>
+			<if test="sh_weather != null and sh_weather != ''">, sh_weather = VALUES(sh_weather)</if>
+			<if test="sh_temp != null and sh_temp != ''">, sh_temp = VALUES(sh_temp)</if>
+			<if test="sh_wind != null and sh_wind != ''">, sh_wind = VALUES(sh_wind)</if>
+			<if test="sh_humid != null and sh_humid != ''">, sh_humid = VALUES(sh_humid)</if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+			
+			<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(sh_seq) FROM shift 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND sh_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 당직일지 근무자 삭제 -->
+	<delete id="delete_worker">
+		DELETE FROM worker WHERE 1=1
+			AND sh_seq = #{seq}
+			<if test="wk_seq"> AND wk_seq NOT IN <foreach collection="multi.wk_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 당직일지 근무자 추가/수정 -->
+	<insert id="insert_worker">
+		INSERT INTO worker
+		(
+			wk_seq
+			, sh_seq
+			, wt_seq
+			, wk_place
+			, wk_team
+			, wk_rank
+			, per_seq
+			, wk_start
+			, wk_end
+			, wk_content
+			, wk_note
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.wk_seq" index="index" separator=",">
+		(
+			IF(${multi.wk_seq[index]} = 0, NULL, ${multi.wk_seq[index]})				
+			, ${seq}		
+			, IF(${multi.wt_seq[index]} = 0, NULL, ${multi.wt_seq[index]})			
+			, '${multi.wk_place[index]}'
+			, '${multi.wk_team[index]}'
+			, '${multi.wk_rank[index]}'
+			, IF(${multi.per_seq[index]} = 0, NULL, ${multi.per_seq[index]})			
+			, CASE '${multi.wk_start[index]}'
+			  	WHEN '' THEN 0
+			  	WHEN '0' THEN 0
+				ELSE DATE_FORMAT('${multi.wk_start[index]}', '%Y%m%d%H%i%s')
+			  END			 
+			, CASE '${multi.wk_end[index]}'
+			  	WHEN '' THEN 0
+			  	WHEN '0' THEN 0
+				ELSE DATE_FORMAT('${multi.wk_end[index]}', '%Y%m%d%H%i%s')
+			  END
+			, '${multi.wk_content[index]}'
+			, '${multi.wk_note[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE	
+			wk_seq = VALUES(wk_seq)
+			, sh_seq = VALUES(sh_seq)
+			, wt_seq = VALUES(wt_seq)
+			, wk_place = VALUES(wk_place)
+			, wk_team = VALUES(wk_team)
+			, wk_rank = VALUES(wk_rank)
+			, per_seq = VALUES(per_seq)
+			, wk_start = VALUES(wk_start)
+			, wk_end = VALUES(wk_end)
+			, wk_content = VALUES(wk_content)
+			, wk_note = VALUES(wk_note)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 당직일지 지시/연락사항 삭제 -->
+	<delete id="delete_contact">
+		DELETE FROM contact WHERE 1=1
+			AND sh_seq = #{seq}
+			<if test="ct_seq"> AND ct_seq NOT IN <foreach collection="multi.ct_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 당직일지 지시/연락사항 추가/수정 -->
+	<insert id="insert_contact">
+		INSERT INTO contact
+		(
+			ct_seq
+			, sh_seq
+			, ct_phone
+			, ct_date
+			, per_seq
+			, ct_content
+			, ct_result
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.ct_seq" index="index" separator=",">
+		(
+			IF(${multi.ct_seq[index]} = 0, NULL, ${multi.ct_seq[index]})				
+			, ${seq}				
+			, '${multi.ct_phone[index]}'			
+			, CASE '${multi.ct_date[index]}'
+			  	WHEN '' THEN 0
+			  	WHEN '0' THEN 0
+				ELSE DATE_FORMAT('${multi.ct_date[index]}', '%Y%m%d%H%i%s')
+			  END
+			, IF(${multi.per_seq2[index]} = 0, NULL, ${multi.per_seq2[index]})	
+			, '${multi.ct_content[index]}'
+			, '${multi.ct_result[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE	
+			ct_seq = VALUES(ct_seq)
+			, sh_seq = VALUES(sh_seq)
+			, ct_phone = VALUES(ct_phone)
+			, ct_date = VALUES(ct_date)
+			, per_seq = VALUES(per_seq)
+			, ct_content = VALUES(ct_content)
+			, ct_result = VALUES(ct_result)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 당직일지 보고사항 삭제 -->
+	<delete id="delete_report">
+		DELETE FROM report WHERE 1=1
+			AND sh_seq = #{seq}
+			<if test="rp_seq"> AND rp_seq NOT IN <foreach collection="multi.rp_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 당직일지 보고사항 추가/수정 -->
+	<insert id="insert_report">
+		INSERT INTO report
+		(
+			rp_seq
+			, sh_seq
+			, rp_hour
+			, rp_content
+			, rp_caller
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.rp_seq" index="index" separator=",">
+		(
+			IF(${multi.rp_seq[index]} = 0, NULL, ${multi.rp_seq[index]})				
+			, ${seq}			
+			, CASE '${multi.rp_hour[index]}'
+			  	WHEN '' THEN 0
+			  	WHEN '0' THEN 0
+				ELSE DATE_FORMAT('${multi.rp_hour[index]}', '%Y%m%d%H%i%s')
+			  END
+			, '${multi.rp_content[index]}'
+			, '${multi.rp_caller[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			rp_seq = VALUES(rp_seq)
+			, sh_seq = VALUES(sh_seq)
+			, rp_hour = VALUES(rp_hour)
+			, rp_content = VALUES(rp_content)
+			, rp_caller = VALUES(rp_caller)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 당직일지 -->
+	<select id="select_shift" resultType="HashMap">
+		SELECT
+			a.sh_seq AS seq, a.og_seq, b.og_name, a.sh_type, a.sh_date, a.sh_daily, a.sh_etc, 
+			a.sh_weather, a.sh_temp, a.sh_wind, a.sh_humid
+		FROM shift a
+		LEFT JOIN organization b
+			ON a.og_seq = b.og_seq
+		WHERE 1=1
+			AND a.sh_seq = #{seq}
+	</select>
+	
+	<!-- 당직일지 근무자 -->
+	<select id="select_worker" resultType="HashMap">
+		SELECT 
+			a.wk_seq, a.sh_seq, a.wt_seq, a.wk_place, a.wk_team, a.wk_rank, 
+			a.per_seq, b.per_name, a.wk_start, a.wk_end, a.wk_content, a.wk_note			
+		FROM worker a 
+		LEFT JOIN personnel b
+			ON a.per_seq = b.per_seq
+		WHERE 1=1
+			AND sh_seq = #{seq}
+	</select>
+	
+	<!-- 당직일지 지시/연락사항 -->
+	<select id="select_contact" resultType="HashMap">
+		SELECT
+			a.ct_seq, a.sh_seq, a.ct_phone, a.ct_date, a.per_seq, a.ct_content, a.ct_result, b.per_name as per_seq2_name
+		FROM contact a 
+		LEFT JOIN personnel b
+			ON a.per_seq = b.per_seq
+		WHERE 1=1
+			AND a.sh_seq = #{seq}
+	</select>
+	
+	<!-- 당직일지 보고사항 -->
+	<select id="select_report" resultType="HashMap">
+		SELECT 
+			rp_seq, sh_seq, rp_hour, rp_content, rp_caller
+		FROM report WHERE 1=1
+			AND sh_seq = #{seq}
+	</select>
+	
+	<!-- 당직일지 삭제 -->
+	<delete id="delete_shift">
+		<if test="section == 1">
+		DELETE FROM report WHERE 1=1 AND sh_seq = #{seq}
+		</if>
+		
+		<if test="section == 2">
+		DELETE FROM contact WHERE 1=1 AND sh_seq = #{seq}
+		</if>
+		
+		<if test="section == 3">
+		DELETE FROM worker WHERE 1=1 AND sh_seq = #{seq}
+		</if>
+		
+		<if test="section == 4">
+		DELETE FROM shift WHERE 1=1 AND sh_seq = #{seq}
+		</if>
+	</delete>
+	
+	<!-- 일수 가져오기 -->
+	<select id="select_days" resultType="int">
+		<if test="type == 1">
+			<if test="quarter == 0">
+			SELECT 365
+			</if>
+		
+			<if test="quarter == 1">
+			SELECT DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '0101')), '%d') + DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '0201')), '%d') + DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '0301')), '%d')
+			</if>
+		
+			<if test="quarter == 2">
+			SELECT DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '0401')), '%d') + DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '0501')), '%d') + DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '0601')), '%d')
+			</if>
+			
+			<if test="quarter == 3">
+			SELECT DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '0701')), '%d') + DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '0801')), '%d') + DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '0901')), '%d')
+			</if>
+			
+			<if test="quarter == 4">
+			SELECT DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '1001')), '%d') + DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '1101')), '%d') + DATE_FORMAT(LAST_DAY(CONCAT(#{year}, '1201')), '%d')
+			</if>
+		</if>
+		
+		<if test="type == 2">
+		SELECT DATE_FORMAT(LAST_DAY(#{date}), '%d')	
+		</if>
+	</select>
+	
+	<!-- 당직일지 보고서 -->
+	<select id="select_shift_report" resultType="HashMap">
+		<!-- 조직명과 날짜 가져오기 -->
+		<if test="section == 1">
+		SELECT
+			a.og_seq, b.og_name,
+			DATE_FORMAT(a.sh_date, '%Y%m%d000000') AS start_date,
+			DATE_FORMAT(a.sh_date, '%Y%m%d235959') AS end_date,
+			CONCAT(
+		        DATE_FORMAT(a.sh_date, '%Y.%m.%d'),
+		        CASE DAYOFWEEK(a.sh_date)
+				    		WHEN '1' THEN ' (일요일)'
+				    		WHEN '2' THEN ' (월요일)'
+				    		WHEN '3' THEN ' (화요일)'
+				    		WHEN '4' THEN ' (수요일)'
+				    		WHEN '5' THEN ' (목요일)'
+				  	  		WHEN '6' THEN ' (금요일)'
+				    		WHEN '7' THEN ' (토요일)'
+				END,
+		        CASE a.sh_type
+		        	WHEN 1 THEN ' [주간]'
+		        	ELSE ' [야간]'
+		        END
+		    ) AS sh_date
+		FROM shift a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		WHERE 1=1
+			AND a.sh_seq = #{seq}
+		</if>
+	
+		<!-- 근무자 -->
+		<if test="section == 2">
+		SELECT
+			a.wk_place, a.wk_team, a.wk_rank, a.per_seq, b.per_name,
+			a.wk_start, a.wk_end, a.wk_content, a.wk_note
+		FROM worker a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		WHERE 1=1
+			AND a.sh_seq = #{seq}
+		ORDER BY a.wk_seq ASC
+		</if>
+		
+		<!-- 지시 및 연락사항 -->
+		<if test="section == 3">
+		SELECT
+			a.ct_phone, a.ct_date, a.per_seq, b.per_name, a.ct_content, a.ct_result
+		FROM contact a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		WHERE 1=1
+			AND a.sh_seq = #{seq}
+		ORDER BY a.ct_seq ASC
+		</if>
+		
+		<!-- 고장 및 조치 현황 합계-->
+		<if test="section == 4">
+		SELECT
+			tb1.division,
+			IFNULL(tb2.value, 0) AS value1, IFNULL(tb3.value, 0) AS value2,
+			IFNULL(tb4.value, 0) AS value3, IFNULL(tb5.value, 0) AS value4,
+			IFNULL(tb6.value, 0) AS value5
+		FROM
+		(
+			SELECT
+				a.seq AS division
+			FROM seq_1_to_365 a WHERE 1=1
+		    	AND a.seq &lt; 5
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.og_seq = #{og_seq}
+				AND a.at_date >= #{start_date}
+				AND a.at_date &lt;= #{end_date}
+		)tb2 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a
+			WHERE 1=1
+				AND a.og_seq = #{og_seq}
+				AND a.at_date >= #{start_date}
+				AND a.at_date &lt;= #{end_date}
+				AND a.at_action = 1			
+		)tb3 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value, b.division AS sys_division
+			FROM action a
+			LEFT JOIN system b ON a.sys_seq = b.seq
+			WHERE 1=1
+				AND a.og_seq = #{og_seq}
+				AND a.at_date >= #{start_date}
+				AND a.at_date &lt;= #{end_date}				
+			GROUP BY b.division
+		)tb4 ON tb1.division = tb4.sys_division
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value, b.division AS sys_division
+			FROM action a
+			LEFT JOIN system b ON a.sys_seq = b.seq
+			WHERE 1=1
+				AND a.og_seq = #{og_seq}
+				AND a.at_date >= #{start_date}
+				AND a.at_date &lt;= #{end_date}
+				AND a.at_action = 1
+			GROUP BY b.division
+		)tb5 ON tb1.division = tb5.sys_division
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value, a.brc_seq
+			FROM action a
+			WHERE 1=1
+				AND a.og_seq = #{og_seq}
+				AND a.at_date >= #{start_date}
+				AND a.at_date &lt;= #{end_date}
+				AND a.at_action = 2
+		)tb6 ON 1=1
+		ORDER BY tb1.division ASC
+		</if>
+		
+		<!-- 고장 및 조치 현황 리스트-->
+		<if test="section == 5">
+		SELECT
+			tb1.brc_seq, tb1.brc_name, tb1.division,
+			IFNULL(tb2.value, 0) AS value1, IFNULL(tb3.value, 0) AS value2,
+			IFNULL(tb4.value, 0) AS value3, IFNULL(tb5.value, 0) AS value4,
+			IFNULL(tb6.value, 0) AS value5
+		FROM
+		(
+		    SELECT
+				a.seq AS brc_seq, a.name AS brc_name, a.code AS brc_code, b.seq AS division
+			FROM branch a
+			LEFT JOIN seq_1_to_365 b ON 1=1 AND b.seq &lt; 5
+			WHERE 1=1
+				AND a.division = #{og_seq}
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value, a.brc_seq
+			FROM action a
+			WHERE 1=1
+				AND a.og_seq = #{og_seq}
+				AND a.at_date >= #{start_date}
+				AND a.at_date &lt;= #{end_date}				
+			GROUP BY a.brc_seq
+		)tb2 ON tb1.brc_seq = tb2.brc_seq
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value, a.brc_seq
+			FROM action a
+			WHERE 1=1
+				AND a.og_seq = #{og_seq}
+				AND a.at_date >= #{start_date}
+				AND a.at_date &lt;= #{end_date}
+				AND a.at_action = 1
+			GROUP BY a.brc_seq
+		)tb3 ON tb1.brc_seq = tb2.brc_seq
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value, b.division AS sys_division, a.brc_seq
+			FROM action a
+			LEFT JOIN system b ON a.sys_seq = b.seq
+			WHERE 1=1
+				AND a.og_seq = #{og_seq}
+				AND a.at_date >= #{start_date}
+				AND a.at_date &lt;= #{end_date}				
+			GROUP BY a.brc_seq, b.division
+		)tb4 ON tb1.brc_seq = tb4.brc_seq AND tb1.division = tb4.sys_division
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value, b.division AS sys_division, a.brc_seq
+			FROM action a
+			LEFT JOIN system b ON a.sys_seq = b.seq
+			WHERE 1=1
+				AND a.og_seq = #{og_seq}
+				AND a.at_date >= #{start_date}
+				AND a.at_date &lt;= #{end_date}
+				AND a.at_action = 1
+			GROUP BY a.brc_seq, b.division
+		)tb5 ON tb1.brc_seq = tb5.brc_seq AND tb1.division = tb5.sys_division
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value, a.brc_seq
+			FROM action a
+			WHERE 1=1
+				AND a.og_seq = #{og_seq}
+				AND a.at_date >= #{start_date}
+				AND a.at_date &lt;= #{end_date}
+				AND a.at_action = 2
+			GROUP BY a.brc_seq
+		)tb6 ON tb1.brc_seq = tb6.brc_seq
+		ORDER BY tb1.brc_code ASC, tb1.division ASC
+		</if>
+		
+		<!-- 보고사항 -->
+		<if test="section == 6">
+		SELECT
+			rp_hour, rp_content, rp_caller
+		FROM report WHERE 1=1
+			AND sh_seq = #{seq}
+		</if>
+		
+		<!-- 지사 리스트 -->
+		<if test="section == 7">
+		SELECT
+			seq AS brc_seq, division AS og_seq, name AS brc_name
+		FROM branch WHERE 1=1
+			AND division = #{og_seq}
+		ORDER BY code ASC
+		</if>
+	</select>
+	
+	<!-- 고장통계 -->
+	<select id="select_system_table" resultType="HashMap">
+		<!-- 설비 시퀀스 가져오기 -->
+		<if test="section == 1">
+		SELECT
+			seq AS sys_seq, name AS sys_name
+		FROM system WHERE 1=1
+			AND name IN ('TCS', '축중기', 'FTMS', 'TTMS', '전송')
+		ORDER BY name ='전송', sys_name ='TTMS', sys_name ='FTMS', sys_name ='축중기', sys_name ='TCS'
+		</if>
+		
+		<!-- 시간 & 건수 -->
+		<if test="section == 2">
+		<!-- 고장시간 -->		
+		SELECT
+			IFNULL(tb2.value, 0) AS value1
+			, IFNULL(tb3.value, 0) AS value2
+			, IFNULL(tb4.value, 0) AS value3
+			, IFNULL(tb5.value, 0) AS value4
+			, IFNULL(tb6.value, 0) AS value5
+			, IFNULL(tb7.value, 0) AS value6
+		FROM
+		(
+			SELECT
+				a.seq AS division
+			FROM seq_1_to_365 a WHERE 1=1
+		    	AND a.seq = 1
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq IN <foreach collection="system" item="item" open="(" separator="," close=")"> #{item.sys_seq} </foreach> </if>	
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>		
+		)tb2 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[0].sys_seq} </if>	
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>			
+		)tb3 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[1].sys_seq} </if>	
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>			
+		)tb4 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[2].sys_seq} </if>		
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		)tb5 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[3].sys_seq} </if>
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>		
+		)tb6 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[4].sys_seq} </if>	
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>		
+		)tb7 ON 1=1
+		
+		UNION ALL
+		<!-- 고장건수 -->
+		SELECT
+			IFNULL(tb2.value, 0) AS value1
+			, IFNULL(tb3.value, 0) AS value2
+			, IFNULL(tb4.value, 0) AS value3
+			, IFNULL(tb5.value, 0) AS value4
+			, IFNULL(tb6.value, 0) AS value5
+			, IFNULL(tb7.value, 0) AS value6
+		FROM
+		(
+			SELECT
+				a.seq AS division
+			FROM seq_1_to_365 a WHERE 1=1
+		    	AND a.seq = 1
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq IN <foreach collection="system" item="item" open="(" separator="," close=")"> #{item.sys_seq} </foreach> </if>
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		)tb2 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[0].sys_seq} </if>	
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+		)tb3 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[1].sys_seq} </if>		
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		)tb4 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[2].sys_seq} </if>	
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+		)tb5 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[3].sys_seq} </if>
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>				
+		)tb6 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+				<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+				<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+				<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[4].sys_seq} </if>	
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>		
+		)tb7 ON 1=1		
+		</if>
+		
+		<!-- 고장률 & 가동률 -->
+		<if test="section == 3">
+		<!-- 고장률 -->
+		SELECT
+			TRUNCATE(IFNULL((100 - (1-(tb.value2/(tb.value1*${days}*24*60))))*100, 0), 3) AS value1,
+			TRUNCATE(IFNULL((100 - (1-(tb.value4/(tb.value3*${days}*24*60))))*100, 0), 3) AS value2,
+			TRUNCATE(IFNULL((100 - (1-(tb.value6/(tb.value5*${days}*24*60))))*100, 0), 3) AS value3,
+			TRUNCATE(IFNULL((100 - (1-(tb.value8/(tb.value7*${days}*24*60))))*100, 0), 3) AS value4,
+			TRUNCATE(IFNULL((100 - (1-(tb.value10/(tb.value9*${days}*24*60))))*100, 0), 3) AS value5,
+			TRUNCATE(IFNULL((100 - (1-(tb.value12/(tb.value11*${days}*24*60))))*100, 0), 3) AS value6		
+		FROM(
+			SELECT			
+				IFNULL(tb2.value1, 0) AS value1, IFNULL(tb2.value2, 0) AS value2
+				, IFNULL(tb3.value1, 0) AS value3, IFNULL(tb3.value2, 0) AS value4
+				, IFNULL(tb4.value1, 0) AS value5, IFNULL(tb4.value2, 0) AS value6
+				, IFNULL(tb5.value1, 0) AS value7, IFNULL(tb5.value2, 0) AS value8
+				, IFNULL(tb6.value1, 0) AS value9, IFNULL(tb6.value2, 0) AS value10
+				, IFNULL(tb7.value1, 0) AS value11, IFNULL(tb7.value2, 0) AS value12
+			FROM
+			(
+				SELECT
+					a.seq AS division
+				FROM seq_1_to_365 a WHERE 1=1
+			    	AND a.seq = 1
+			)tb1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq IN <foreach collection="system" item="item" open="(" separator="," close=")"> #{item.sys_seq} </foreach> </if>
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+			)tb2 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[0].sys_seq} </if>		
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb3 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[1].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb4 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[2].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb5 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[3].sys_seq} </if>		
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb6 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[4].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb7 ON 1=1
+		)tb	
+		
+		UNION ALL
+		<!-- 가동률 -->
+		SELECT
+			TRUNCATE(IFNULL(((1-(tb.value2/(tb.value1*${days}*24*60))))*100, 0), 3) AS value1,
+			TRUNCATE(IFNULL(((1-(tb.value4/(tb.value3*${days}*24*60))))*100, 0), 3) AS value2,
+			TRUNCATE(IFNULL(((1-(tb.value6/(tb.value5*${days}*24*60))))*100, 0), 3) AS value3,
+			TRUNCATE(IFNULL(((1-(tb.value8/(tb.value7*${days}*24*60))))*100, 0), 3) AS value4,
+			TRUNCATE(IFNULL(((1-(tb.value10/(tb.value9*${days}*24*60))))*100, 0), 3) AS value5,
+			TRUNCATE(IFNULL(((1-(tb.value12/(tb.value11*${days}*24*60))))*100, 0), 3) AS value6		
+		FROM(
+			SELECT			
+				IFNULL(tb2.value1, 0) AS value1, IFNULL(tb2.value2, 0) AS value2
+				, IFNULL(tb3.value1, 0) AS value3, IFNULL(tb3.value2, 0) AS value4
+				, IFNULL(tb4.value1, 0) AS value5, IFNULL(tb4.value2, 0) AS value6
+				, IFNULL(tb5.value1, 0) AS value7, IFNULL(tb5.value2, 0) AS value8
+				, IFNULL(tb6.value1, 0) AS value9, IFNULL(tb6.value2, 0) AS value10
+				, IFNULL(tb7.value1, 0) AS value11, IFNULL(tb7.value2, 0) AS value12
+			FROM
+			(
+				SELECT
+					a.seq AS division
+				FROM seq_1_to_365 a WHERE 1=1
+			    	AND a.seq = 1
+			)tb1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq IN <foreach collection="system" item="item" open="(" separator="," close=")"> #{item.sys_seq} </foreach> </if>
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+			)tb2 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[0].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>		
+			)tb3 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[1].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb4 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[2].sys_seq} </if>
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>		
+			)tb5 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[3].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>			
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+			)tb6 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					<if test="quarter == 1"> AND a.at_month &lt; 4 </if>
+					<if test="quarter == 2"> AND a.at_month > 3 AND a.at_month &lt; 7 </if>
+					<if test="quarter == 3"> AND a.at_month > 6 AND a.at_month &lt; 10 </if>
+					<if test="quarter == 4"> AND a.at_month > 9 AND a.at_month &lt; 13 </if>
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[4].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>		
+			)tb7 ON 1=1
+		)tb		
+		</if>
+			
+		<!-- 분기별 시간 & 건수 -->
+		<if test="section == 4">
+		<!-- 고장시간 -->		
+		SELECT
+			IFNULL(tb2.value, 0) AS value1
+			, IFNULL(tb3.value, 0) AS value2
+			, IFNULL(tb4.value, 0) AS value3
+			, IFNULL(tb5.value, 0) AS value4
+			, IFNULL(tb6.value, 0) AS value5
+			, IFNULL(tb7.value, 0) AS value6
+		FROM
+		(
+			SELECT
+				a.seq AS division
+			FROM seq_1_to_365 a WHERE 1=1
+		    	AND a.seq = 1
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq IN <foreach collection="system" item="item" open="(" separator="," close=")"> #{item.sys_seq} </foreach> </if>	
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+		)tb2 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[0].sys_seq} </if>		
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		)tb3 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[1].sys_seq} </if>	
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>		
+		)tb4 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[2].sys_seq} </if>	
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+		)tb5 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[3].sys_seq} </if>		
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		)tb6 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				SUM(a.at_minute) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[4].sys_seq} </if>			
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		)tb7 ON 1=1
+		
+		UNION ALL
+		<!-- 고장건수 -->
+		SELECT
+			IFNULL(tb2.value, 0) AS value1
+			, IFNULL(tb3.value, 0) AS value2
+			, IFNULL(tb4.value, 0) AS value3
+			, IFNULL(tb5.value, 0) AS value4
+			, IFNULL(tb6.value, 0) AS value5
+			, IFNULL(tb7.value, 0) AS value6
+		FROM
+		(
+			SELECT
+				a.seq AS division
+			FROM seq_1_to_365 a WHERE 1=1
+		    	AND a.seq = 1
+		)tb1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq IN <foreach collection="system" item="item" open="(" separator="," close=")"> #{item.sys_seq} </foreach> </if>
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		)tb2 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[0].sys_seq} </if>		
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+		)tb3 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[1].sys_seq} </if>			
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		)tb4 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[2].sys_seq} </if>		
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		)tb5 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[3].sys_seq} </if>		
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+		)tb6 ON 1=1
+		LEFT JOIN
+		(
+			SELECT
+				COUNT(a.at_seq) AS value
+			FROM action a WHERE 1=1
+				AND a.at_year = #{year}
+				AND a.at_month = #{month}
+				<if test="none_system"> AND a.sys_seq = 0 </if>
+				<if test="system"> AND a.sys_seq = #{system[4].sys_seq} </if>		
+				<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+				<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+				<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>
+		)tb7 ON 1=1		
+		</if>
+		
+		<!-- 분기별 고장률 & 가동률 -->
+		<if test="section == 5">
+		<!-- 고장률 -->
+		SELECT
+			TRUNCATE(IFNULL((100 - (1-(tb.value2/(tb.value1*${days}*24*60))))*100, 0), 3) AS value1,
+			TRUNCATE(IFNULL((100 - (1-(tb.value4/(tb.value3*${days}*24*60))))*100, 0), 3) AS value2,
+			TRUNCATE(IFNULL((100 - (1-(tb.value6/(tb.value5*${days}*24*60))))*100, 0), 3) AS value3,
+			TRUNCATE(IFNULL((100 - (1-(tb.value8/(tb.value7*${days}*24*60))))*100, 0), 3) AS value4,
+			TRUNCATE(IFNULL((100 - (1-(tb.value10/(tb.value9*${days}*24*60))))*100, 0), 3) AS value5,
+			TRUNCATE(IFNULL((100 - (1-(tb.value12/(tb.value11*${days}*24*60))))*100, 0), 3) AS value6		
+		FROM(
+			SELECT			
+				IFNULL(tb2.value1, 0) AS value1, IFNULL(tb2.value2, 0) AS value2
+				, IFNULL(tb3.value1, 0) AS value3, IFNULL(tb3.value2, 0) AS value4
+				, IFNULL(tb4.value1, 0) AS value5, IFNULL(tb4.value2, 0) AS value6
+				, IFNULL(tb5.value1, 0) AS value7, IFNULL(tb5.value2, 0) AS value8
+				, IFNULL(tb6.value1, 0) AS value9, IFNULL(tb6.value2, 0) AS value10
+				, IFNULL(tb7.value1, 0) AS value11, IFNULL(tb7.value2, 0) AS value12
+			FROM
+			(
+				SELECT
+					a.seq AS division
+				FROM seq_1_to_365 a WHERE 1=1
+			    	AND a.seq = 1
+			)tb1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq IN <foreach collection="system" item="item" open="(" separator="," close=")"> #{item.sys_seq} </foreach> </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>			
+			)tb2 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[0].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>		
+			)tb3 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[1].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>			
+			)tb4 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[2].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>			
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb5 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[3].sys_seq} </if>		
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb6 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[4].sys_seq} </if>		
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>		
+			)tb7 ON 1=1
+		)tb	
+		
+		UNION ALL
+		<!-- 가동률 -->
+		SELECT
+			TRUNCATE(IFNULL(((1-(tb.value2/(tb.value1*${days}*24*60))))*100, 0), 3) AS value1,
+			TRUNCATE(IFNULL(((1-(tb.value4/(tb.value3*${days}*24*60))))*100, 0), 3) AS value2,
+			TRUNCATE(IFNULL(((1-(tb.value6/(tb.value5*${days}*24*60))))*100, 0), 3) AS value3,
+			TRUNCATE(IFNULL(((1-(tb.value8/(tb.value7*${days}*24*60))))*100, 0), 3) AS value4,
+			TRUNCATE(IFNULL(((1-(tb.value10/(tb.value9*${days}*24*60))))*100, 0), 3) AS value5,
+			TRUNCATE(IFNULL(((1-(tb.value12/(tb.value11*${days}*24*60))))*100, 0), 3) AS value6		
+		FROM(
+			SELECT			
+				IFNULL(tb2.value1, 0) AS value1, IFNULL(tb2.value2, 0) AS value2
+				, IFNULL(tb3.value1, 0) AS value3, IFNULL(tb3.value2, 0) AS value4
+				, IFNULL(tb4.value1, 0) AS value5, IFNULL(tb4.value2, 0) AS value6
+				, IFNULL(tb5.value1, 0) AS value7, IFNULL(tb5.value2, 0) AS value8
+				, IFNULL(tb6.value1, 0) AS value9, IFNULL(tb6.value2, 0) AS value10
+				, IFNULL(tb7.value1, 0) AS value11, IFNULL(tb7.value2, 0) AS value12
+			FROM
+			(
+				SELECT
+					a.seq AS division
+				FROM seq_1_to_365 a WHERE 1=1
+			    	AND a.seq = 1
+			)tb1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq IN <foreach collection="system" item="item" open="(" separator="," close=")"> #{item.sys_seq} </foreach> </if>
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb2 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[0].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>			
+			)tb3 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[1].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>			
+			)tb4 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[2].sys_seq} </if>		
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb5 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[3].sys_seq} </if>		
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>		
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>	
+			)tb6 ON 1=1
+			LEFT JOIN
+			(
+				SELECT
+					SUM(a.at_minute) AS value1, COUNT(a.at_seq) AS value2
+				FROM action a WHERE 1=1
+					AND a.at_year = #{year}
+					AND a.at_month = #{month}
+					<if test="none_system"> AND a.sys_seq = 0 </if>
+					<if test="system"> AND a.sys_seq = #{system[4].sys_seq} </if>	
+					<if test="og_seq != null and og_seq != ''"> AND a.og_seq = #{og_seq} </if>	
+					<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+					<if test="auth == 2"> AND a.at_writer = #{auth_seq} </if>			
+			)tb7 ON 1=1
+		)tb		
+		</if>
+	</select>
+	
+	<!-- 고장접수관리 엑셀 -->
+	<select id="select_breakdown_excel" resultType="HashMap">
+		SELECT
+			a.bk_seq AS seq
+			, a.bk_number
+			, a.bk_code
+			, (SELECT tb.dc_name FROM device tb WHERE 1=1 AND tb.dc_seq=a.dc_seq) AS dc_seq
+			, b.dc_name
+			, b.dc_location
+			, date_format(a.bk_faulty, '%Y-%m-%d %H:%i') AS bk_faulty
+			, date_format(a.bk_receipt, '%Y-%m-%d %H:%i') AS bk_receipt
+			, date_format(a.bk_start, '%Y-%m-%d %H:%i') AS bk_start
+			, date_format(a.bk_finish, '%Y-%m-%d %H:%i') AS bk_finish
+			, date_format(a.bk_hour, '%Y-%m-%d %H:%i') AS bk_hour
+			, CONCAT(FORMAT(a.bk_cost,0),'원') AS bk_cost
+			, CASE 
+				WHEN a.bk_work=1 THEN '점검시'
+				WHEN a.bk_work=2 THEN '주간콜'
+				WHEN a.bk_work=3 THEN '야간콜'
+				ELSE '유선' END AS bk_work
+			, CASE
+				WHEN bk_standard=1 THEN '단순정비'
+				WHEN bk_standard=2 THEN '경정비'
+				WHEN bk_standard=3 THEN '중정비'
+				WHEN bk_standard=4 THEN '입고수리'
+				ELSE '원상복귀' END AS bk_standard
+			, CASE
+				WHEN a.bk_process=1 THEN '부품교환'
+				ELSE '조정' END AS bk_process
+			, a.per_seq
+			, c.per_name
+			, a.bk_unique
+		FROM breakdown a
+		LEFT JOIN device b ON a.dc_seq = b.dc_seq
+		LEFT JOIN personnel c ON a.per_seq = c.per_seq
+		WHERE 1=1
+			AND a.bk_seq = #{seq}
+	</select>
+	
+	<!-- 고장접수관리 작업자 엑셀 -->
+	<select id="select_breakdown_worker_excel" resultType="HashMap">
+		SELECT
+			a.bw_seq
+			, a.bk_seq
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.per_seq) AS per_seq
+			, a.bw_note
+		FROM breakdown_worker a
+		WHERE 1=1
+			AND bk_seq = #{seq}
+	</select>
+	
+	<!-- 고장접수관리 구성부 엑셀 -->
+	<select id="select_breakdown_compose_excel" resultType="HashMap">
+		SELECT
+			bc_seq
+			, bk_seq
+			, bc_compose
+			, bc_status
+			, bc_cause
+			, bc_result
+			, bc_note
+		FROM breakdown_compose
+		WHERE 1=1
+			AND bk_seq = #{seq}
+	</select>
+	
+	<!-- 고장접수관리 저장품내역 엑셀 -->
+	<select id="select_breakdown_storage_excel" resultType="HashMap">
+		SELECT
+			a.bs_seq AS bs_seq1
+			, (SELECT tb.bc_compose FROM breakdown_compose tb WHERE 1=1 AND tb.bc_seq=a.bc_seq) AS bc_seq1
+			, CASE 
+				WHEN a.bs_process=1 THEN '유상'
+				ELSE '무상' END AS bs_process1
+			, a.bs_old AS bs_old1
+			, a.bs_new AS bs_new1
+			, (SELECT tb.pt_name FROM part tb WHERE 1=1 AND tb.pt_seq=a.pt_seq) AS pt_seq1
+			, CONCAT(FORMAT(a.bs_count,0),'개') AS bs_count1
+			, CONCAT(FORMAT(a.bs_price,0),'원') AS bs_price1
+			, a.bs_arrival AS bs_arrival1
+			, a.bs_note AS bs_note1
+		FROM breakdown_storage a
+		LEFT JOIN breakdown_compose b ON a.bc_seq = b.bc_seq
+		WHERE 1=1
+			AND b.bk_seq = #{seq}
+	</select>
+	
+	<!-- 고장접수관리 KHC예비품/재료비 엑셀 -->
+	<select id="select_breakdown_spare_excel" resultType="HashMap">
+		SELECT
+			a.bs_seq AS bs_seq2
+			, (SELECT tb.bc_compose FROM breakdown_compose tb WHERE 1=1 AND tb.bc_seq=a.bc_seq) AS bc_seq2
+			, CASE 
+				WHEN a.bs_process=1 THEN '유상'
+				ELSE '무상' END AS bs_process2
+			, a.bs_old AS bs_old2
+			, a.bs_new AS bs_new2
+			, (SELECT tb.pt_name FROM part tb WHERE 1=1 AND tb.pt_seq=a.pt_seq) AS pt_seq2
+			, CONCAT(FORMAT(a.bs_count,0),'개') AS bs_count2
+			, CONCAT(FORMAT(a.bs_price,0),'원') AS bs_price2
+			, a.bs_arrival AS bs_arrival2
+			, a.bs_note AS bs_note2
+		FROM breakdown_spare a
+		LEFT JOIN breakdown_compose b ON a.bc_seq = b.bc_seq
+		WHERE 1=1
+			AND b.bk_seq = #{seq}
+	</select>
+	
+	<!-- 고장조치관리 상세 정보 엑셀 -->
+	<select id="select_action_excel" resultType="HashMap">
+		SELECT
+			a.at_seq AS seq
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=a.og_seq) AS og_seq
+			, date_format(a.at_date, '%Y-%m-%d') AS at_date
+			, CASE 
+				WHEN a.at_division=1 THEN '주간'
+				ELSE '야간' END AS at_division
+			, (SELECT tb.name FROM branch tb WHERE 1=1 AND tb.seq=a.brc_seq) AS brc_seq
+			, a.at_place
+			, (SELECT tb.name FROM system tb WHERE 1=1 AND tb.seq=a.sys_seq) AS sys_seq
+			, a.at_device
+			, date_format(a.at_occur, '%Y-%m-%d %H:%i') AS at_occur
+			, date_format(a.at_receipt, '%Y-%m-%d %H:%i') AS at_receipt
+			, a.at_history
+			, CASE
+				WHEN at_action=1 THEN '조치'
+				ELSE '미조치' END AS at_action
+			, (SELECT tb.name FROM process tb WHERE 1=1 AND tb.seq=a.prc_seq) AS prc_seq
+			, CASE
+				WHEN at_manager=1 THEN '콜근무자'
+				ELSE '당직자' END AS at_manager
+			, date_format(a.at_start, '%Y-%m-%d %H:%i') AS at_start
+			, date_format(a.at_finish, '%Y-%m-%d %H:%i') AS at_finish
+			, a.at_content
+			, a.at_part
+			, a.at_reason
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.at_repair) AS at_repair
+		FROM action a
+		WHERE 1=1
+			AND a.at_seq = #{seq}
+	</select>
+	
+	<!-- 고장조치 리스트 엑셀 -->
+	<select id="select_action_date_excel" resultType="HashMap">
+		SELECT
+			a.at_seq AS seq
+			, CASE
+				WHEN at_action=1 THEN '조치'
+				ELSE '미조치' END AS at_action
+			, b.og_name
+			, (SELECT tb.name FROM system tb WHERE 1=1 AND tb.seq=a.sys_seq) AS sys_seq
+			, a.at_place
+			, a.at_device
+			, date_format(a.at_receipt, '%Y-%m-%d %H:%i') AS at_receipt
+			, a.at_history
+			, a.at_content
+			, CASE
+				WHEN c.per_name IS NULL THEN '정보없음'
+				ELSE c.per_name END per_name
+		FROM action a
+		LEFT JOIN organization b ON a.og_seq = b.og_seq
+		LEFT JOIN personnel c ON a.at_writer = c.per_seq
+		WHERE 1=1
+	</select>
+	
+	<!-- 당직일지 엑셀 --> <!-- 양식 다시 수정 -->
+	<select id="select_shift_excel" resultType="HashMap">
+		SELECT
+			a.sh_seq AS seq
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=a.og_seq) AS og_seq
+			, a.sh_type
+			, CASE
+				WHEN a.sh_type=1 THEN '주간'
+				ELSE '야간' END AS sh_type
+			, date_format(a.sh_date, '%Y-%m-%d') AS sh_date
+			, a.sh_daily
+			, a.sh_etc
+			, a.sh_weather
+			, CONCAT(a.sh_speed, 'm/s') AS sh_speed
+			, CONCAT(a.sh_temp,'°C') AS sh_temp
+			, a.sh_wind
+			, CONCAT(a.sh_humid, '%') AS sh_humid
+		FROM shift a
+		WHERE 1=1
+			AND a.sh_seq = #{seq}
+	</select>
+	
+	<!-- 당직일지 근무자 엑셀 -->
+	<select id="select_worker_excel" resultType="HashMap">
+		SELECT 
+			a.wk_seq
+			, (SELECT tb.name FROM work_type tb WHERE 1=1 AND tb.seq=a.sh_seq) AS sh_seq
+			, a.wt_seq
+			, a.wk_place
+			, a.wk_team
+			, a.wk_rank
+			, a.per_seq
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.per_seq) AS per_seq
+			, date_format(a.wk_start, '%Y-%m-%d-%H:%i') AS wk_start
+			, date_format(a.wk_end, '%Y-%m-%d-%H:%i') AS wk_end
+			, a.wk_content
+			, a.wk_note
+		FROM worker a 
+		WHERE 1=1
+		AND a.sh_seq = #{seq}
+	</select>
+	
+	<!-- 당직일지 지시/연락사항 엑셀 -->
+	<select id="select_contact_excel" resultType="HashMap">
+		SELECT
+			a.ct_seq
+			, a.sh_seq
+			, a.ct_phone
+			, date_format(a.ct_date, '%Y-%m-%d-%H:%i') AS ct_date
+			, (SELECT tb.per_name FROM personnel tb WHERE 1=1 AND tb.per_seq=a.per_seq) AS per_seq
+			, a.ct_content
+			, a.ct_result
+		FROM contact a WHERE 1=1
+			AND a.sh_seq = #{seq}
+	</select>
+	
+	<!-- 당직일지 보고사항 엑셀 -->
+	<select id="select_report_excel" resultType="HashMap">
+		SELECT
+			rp_seq
+			, sh_seq
+			, date_format(rp_hour, '%Y-%m-%d-%H:%i') AS rp_hour
+			, rp_content
+			, rp_caller
+		FROM report WHERE 1=1
+			AND sh_seq = #{seq}
+	</select>
+</mapper>

@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.BoardMapper">
+
+	<!-- 리스트 정렬 -->
+	<sql id="order"> 
+	<if test="column == null or column == ''"> ORDER BY seq DESC </if>
+	<if test="column">ORDER BY ${column} ${order} </if>	
+	</sql>
+	
+	<!-- 페이징 -->
+	<sql id="paging"> LIMIT #{start_num}, #{row_num} </sql>
+	
+	<!-- 공지사항 리스트 개수 가져오기 -->
+	<select id="select_notice_cnt" resultType="int">
+		SELECT
+			COUNT(a.nt_seq)
+		FROM notice a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="nt_subject != null and nt_subject != ''"> AND a.nt_subject LIKE '%${nt_subject}%' </if>
+			<if test="per_name != null and per_name != ''"> AND b.per_name LIKE '%${per_name}%' </if>
+			<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+	</select>
+	
+	<!-- 공지사항 리스트 가져오기  -->
+	<select id="select_notice_list" resultType="HashMap">
+		SELECT
+			a.nt_seq AS seq, a.nt_subject, b.per_name, 
+			a.nt_count, a.update_date, a.per_seq,
+			(SELECT COUNT(tb.f_seq) FROM file tb WHERE 1=1 AND tb.f_tb = 'notice' AND tb.tb_seq = a.nt_seq) AS nt_file
+		FROM notice a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="nt_subject != null and nt_subject != ''"> AND a.nt_subject LIKE '%${nt_subject}%' </if>
+			<if test="per_name != null and per_name != ''"> AND b.per_name LIKE '%${per_name}%' </if>
+			<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 공지사항 추가/수정 -->
+	<insert id="insert_notice">
+		INSERT INTO notice
+		(
+			nt_seq
+			, per_seq
+			, nt_subject
+			, nt_content
+			, update_date
+			<if test="seq == null">, create_date</if>
+		)
+		VALUES
+		(
+			#{seq}
+			, #{per_seq}
+			, #{nt_subject}
+			, #{nt_content}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			<if test="seq == null">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			nt_seq = VALUES(nt_seq)
+			, per_seq = VALUES(per_seq)
+			, nt_subject = VALUES(nt_subject)
+			, nt_content = VALUES(nt_content)
+			, update_date = VALUES(update_date)
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(nt_seq) FROM notice 
+			WHERE 1=1
+			<if test="seq"> AND nt_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 공지사항 조회 수정 -->
+	<update id="update_notice_cnt">
+		UPDATE notice SET nt_count = #{cnt} WHERE 1=1 AND nt_seq = #{seq}
+	</update>
+	
+	<!-- 공지사항 상세보기 -->
+	<select id="select_notice" resultType="HashMap">
+		SELECT
+			a.nt_seq AS seq, a.per_seq, b.per_name, a.nt_subject, a.nt_content, a.nt_count, a.update_date
+		FROM notice a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		WHERE 1=1
+			AND a.nt_seq = #{seq}
+	</select>
+	
+	<!-- 공지사항 삭제하기 -->
+	<delete id="delete_notice">
+		DELETE FROM notice WHERE 1=1 AND nt_seq = #{seq}
+	</delete>
+	
+	<!-- 게시판 리스트 개수 가져오기 -->
+	<select id="select_board_cnt" resultType="int">
+		SELECT
+			COUNT(a.bd_seq)
+		FROM board a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		WHERE 1=1			
+			<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="bd_subject != null and bd_subject != ''"> AND a.bd_subject LIKE '%${bd_subject}%' </if>
+			<if test="per_name != null and per_name != ''"> AND b.per_name LIKE '%${per_name}%' </if>
+			<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+	</select>
+	
+	<!-- 게시판 리스트 가져오기  -->
+	<select id="select_board_list" resultType="HashMap">
+		SELECT
+			a.bd_seq AS seq, a.bd_subject, b.per_name, 
+			a.bd_count, a.update_date, a.per_seq,
+			(SELECT COUNT(tb.f_seq) FROM file tb WHERE 1=1 AND tb.f_tb = 'board' AND tb.tb_seq = a.bd_seq) AS bd_file
+		FROM board a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.update_date >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.update_date &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="bd_subject != null and bd_subject != ''"> AND a.bd_subject LIKE '%${bd_subject}%' </if>
+			<if test="per_name != null and per_name != ''"> AND b.per_name LIKE '%${per_name}%' </if>
+			<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.per_seq = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 게시판 추가/수정 -->
+	<insert id="insert_board">
+		INSERT INTO board
+		(
+			bd_seq
+			, per_seq
+			, bd_subject
+			, bd_content
+			, update_date
+			<if test="seq == null">, create_date</if>
+		)
+		VALUES
+		(
+			#{seq}
+			, #{per_seq}
+			, #{bd_subject}
+			, #{bd_content}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			<if test="seq == null">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			bd_seq = VALUES(bd_seq)
+			, per_seq = VALUES(per_seq)
+			, bd_subject = VALUES(bd_subject)
+			, bd_content = VALUES(bd_content)
+			, update_date = VALUES(update_date)
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(bd_seq) FROM board 
+			WHERE 1=1
+			<if test="seq"> AND bd_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 게시판 조회 수정 -->
+	<update id="update_board_cnt">
+		UPDATE board SET bd_count = #{cnt} WHERE 1=1 AND bd_seq = #{seq}
+	</update>
+	
+	<!-- 게시판 상세보기 -->
+	<select id="select_board" resultType="HashMap">
+		SELECT
+			a.bd_seq AS seq, a.per_seq, b.per_name, a.bd_subject, a.bd_content, a.bd_count, a.update_date
+		FROM board a
+		LEFT JOIN personnel b ON a.per_seq = b.per_seq
+		WHERE 1=1
+			AND a.bd_seq = #{seq}
+	</select>
+	
+	<!-- 게시판 삭제하기 -->
+	<delete id="delete_board">
+		DELETE FROM board WHERE 1=1 AND bd_seq = #{seq}
+	</delete>
+	
+	<select id="select_notice_cnt_max" resultType="int">
+		SELECT (a.nt_count + 1) FROM notice a WHERE 1=1 AND a.nt_seq = #{seq}
+	</select>
+	
+	<select id="select_board_cnt_max" resultType="int">
+		SELECT (a.bd_count + 1) FROM board a WHERE 1=1 AND a.bd_seq = #{seq}
+	</select>
+	
+</mapper>

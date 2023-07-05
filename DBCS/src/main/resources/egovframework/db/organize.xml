@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.OrganizeMapper">
+	
+	<!-- 리스트 정렬 -->
+	<sql id="order"> 
+	<if test="column == null or column == ''"> ORDER BY seq DESC </if>
+	<if test="column">ORDER BY ${column} ${order} </if>	
+	</sql>
+	
+	<!-- 페이징 -->
+	<sql id="paging"> LIMIT #{start_num}, #{row_num} </sql>
+	
+	<!-- 인사관리에서 해당 구성원 조직 시퀀스 가져오기 -->
+	<select id="select_member_org" resultType="HashMap">
+		SELECT
+			tb.og_seq
+		FROM
+		(
+			SELECT per_organize AS og_seq
+			FROM personnel WHERE 1=1
+				AND per_name LIKE '%${og_person}%'
+			
+			UNION
+			
+			SELECT per_team AS og_seq
+			FROM personnel WHERE 1=1
+				AND per_name LIKE '%${og_person}%'		
+		)tb WHERE 1=1
+			AND tb.og_seq IS NOT NULL
+	</select>
+	
+	<!-- 상위 레벨 가져오기 -->
+	<select id="select_organize_depth" resultType="HashMap">
+		SELECT
+			a.og_seq AS one, b.og_seq AS two, c.og_seq AS three,
+			d.og_seq AS four, e.og_seq AS five, f.og_seq AS six 
+		FROM organization a
+		LEFT JOIN organization b ON a.og_pcode = b.og_code
+		LEFT JOIN organization c ON b.og_pcode = c.og_code 
+		LEFT JOIN organization d ON c.og_pcode = d.og_code
+		LEFT JOIN organization e ON d.og_pcode = e.og_code 
+		LEFT JOIN organization f ON e.og_pcode = f.og_code
+		WHERE 1=1
+			<if test="per_org">AND a.og_seq IN <foreach collection="per_org" item="item" open="(" separator="," close=")"> #{item.og_seq} </foreach></if>
+			<if test="og_level != null and og_level != ''">AND a.og_level = #{og_level}</if>
+			<if test="og_name != null and og_name != ''">AND a.og_name LIKE '%${og_name}%'</if>
+	</select>
+	
+	<!-- 조직도 리스트 개수 가져오기 -->
+	<select id="select_organize_cnt" resultType="int">
+		SELECT
+			COUNT(DISTINCT a.og_seq)
+		FROM organization a
+		<if test="section == 1">LEFT JOIN personnel b ON a.og_seq = b.per_organize OR a.og_seq = b.per_team</if>
+		WHERE 1=1
+			<if test="org_seq">AND a.og_seq IN <foreach collection="org_seq" item="item" open="(" separator="," close=")"> #{item} </foreach></if>
+			<if test="org_none">AND a.og_seq = 0</if>
+			<if test="section == 11">AND a.og_group = 1</if>
+	</select>
+	
+	<!-- 조직도 리스트 가져오기 -->
+	<select id="select_organize_list" resultType="HashMap">
+		SELECT
+			a.og_seq AS seq, a.og_level, a.og_name, 
+		    a.og_code, a.og_pcode, a.og_date,
+		    a.og_status, a.og_group, a.create_date
+		    <if test="section == 1"> , b.og_person </if>	    
+		FROM organization a
+		<if test="section == 1">
+		LEFT JOIN
+		(
+			SELECT
+				tb1.og_seq, GROUP_CONCAT(tb2.per_name) AS og_person
+			FROM organization tb1
+			LEFT JOIN personnel tb2 ON tb1.og_seq = tb2.per_organize OR tb1.og_seq = tb2.per_team
+			WHERE 1=1
+			GROUP BY tb1.og_seq 
+		)b ON a.og_seq = b.og_seq
+		</if>
+		WHERE 1=1
+			AND a.og_code >= 200000000			
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+			<if test="org_seq">AND a.og_seq IN <foreach collection="org_seq" item="item" open="(" separator="," close=")"> #{item} </foreach></if>
+			<if test="org_none">AND a.og_seq = 0</if>
+			<if test="section == 11">AND a.og_group = 1</if>
+		ORDER BY og_code ASC
+	</select>
+	
+	<!-- 조직도 정보 가져오기 -->
+	<select id="select_organize" resultType="HashMap">
+		SELECT
+			og_seq AS seq, og_level, og_name,
+		    og_code, og_pcode, og_date,
+		    og_status, og_group, create_date
+		FROM organization WHERE 1=1
+			AND og_seq = #{seq}
+	</select>
+	
+	<!-- 하위 레벨 조직도 시퀀스 가져오기 -->
+	<select id="select_organize_seq" resultType="HashMap">
+		SELECT
+			a.og_seq AS one, b.og_seq AS two, c.og_seq AS three,
+		    d.og_seq AS four, e.og_seq AS five, f.og_seq AS six
+		FROM organization a
+		LEFT JOIN organization b ON a.og_code = b.og_pcode AND a.og_code != b.og_code
+		LEFT JOIN organization c ON b.og_code = c.og_pcode AND b.og_code != c.og_code
+		LEFT JOIN organization d ON c.og_code = d.og_pcode AND c.og_code != d.og_code
+		LEFT JOIN organization e ON d.og_code = e.og_pcode AND d.og_code != e.og_code
+		LEFT JOIN organization f ON e.og_code = f.og_pcode AND e.og_code != f.og_code
+		WHERE 1=1
+			AND a.og_seq = #{seq}
+	</select>
+	
+	<!-- 조직도 구성원 개수 가져오기 -->
+	<select id="select_member_cnt" resultType="int">
+		SELECT
+			COUNT(*)
+		FROM
+		(
+			SELECT
+				a.per_seq, a.per_id, a.per_name, a.pos_seq, a.j_seq, 
+				a.per_team, b.f_resize, b.f_repath
+			FROM personnel a
+			LEFT JOIN file b ON a.per_seq = b.tb_seq AND b.f_tb = 'personnel'
+			WHERE 1=1
+				<if test="section == 1">
+				AND a.per_organize = #{seq}
+				OR a.per_team = #{seq}
+				</if>
+				<if test="section == 2">
+				AND a.per_organize IN <foreach collection="depth_seq" item="item" open="(" separator="," close=")"> #{item} </foreach>
+				OR a.per_team IN <foreach collection="depth_seq" item="item" open="(" separator="," close=")"> #{item} </foreach>	
+				</if>	
+			GROUP BY a.per_seq
+		) a
+	</select>
+	
+	<!-- 조직도 구성원 리스트 가져오기 -->
+	<select id="select_member_list" resultType="HashMap">
+		SELECT
+			a.per_seq, a.per_id, a.per_name, a.pos_seq, a.j_seq, 
+			a.per_team, b.f_resize, b.f_repath
+		FROM personnel a
+		LEFT JOIN file b ON a.per_seq = b.tb_seq AND b.f_tb = 'personnel'
+		WHERE 1=1
+			<if test="section == 1">
+			AND a.per_organize = #{seq}
+			OR a.per_team = #{seq}
+			</if>
+			<if test="section == 2">
+			AND a.per_organize IN <foreach collection="depth_seq" item="item" open="(" separator="," close=")"> #{item} </foreach>
+			OR a.per_team IN <foreach collection="depth_seq" item="item" open="(" separator="," close=")"> #{item} </foreach>	
+			</if>	
+		GROUP BY a.per_seq
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 조직도 레벨 최대인지 가져오기 -->
+	<select id="select_organize_level" resultType="int">
+		SELECT
+			<if test="seq == null or seq == ''">
+			og_level + 1
+			</if>
+			<if test="seq != null and seq != ''">
+			og_level
+			</if>
+		FROM organization WHERE 1=1
+			AND og_code = #{og_code}
+	</select>
+	
+	<!-- 조직도 추가/수정 -->
+	<insert id="insert_organize">
+		INSERT INTO organization
+		(
+			og_seq
+			, og_level
+			, og_name
+			, og_code
+			, og_pcode
+			<if test="og_date != null and og_date != ''">, og_date</if>
+			<if test="og_status != null and og_status != ''">, og_status</if>
+			<if test="og_group != null and og_group != ''">, og_group</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''"> , create_date </if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '' 
+			<if test="level == 2">
+				, CASE (SELECT COUNT(a.og_seq) FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+					WHEN 0 THEN #{og_code} + 100000
+					ELSE (SELECT MAX(a.og_seq) + 100000 FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+				  END
+			</if> 
+			<if test="level == 3">
+				, CASE (SELECT COUNT(a.og_seq) FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+					WHEN 0 THEN #{og_code} + 1000
+					ELSE (SELECT MAX(a.og_seq) + 1000 FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+				  END 
+			</if>
+			<if test="level == 4">
+				, CASE (SELECT COUNT(a.og_seq) FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+					WHEN 0 THEN #{og_code} + 1
+					ELSE (SELECT MAX(a.og_seq) + 1 FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+				  END 
+			</if>			
+			, #{seq})
+			, #{level}
+			, #{og_name}
+			<if test="seq == null or seq == ''"> 
+				<if test="level == 2">
+				, CASE (SELECT COUNT(a.og_seq) FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+					WHEN 0 THEN #{og_code} + 100000
+					ELSE (SELECT MAX(a.og_seq) + 100000 FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+				  END
+				</if> 
+				<if test="level == 3">
+				, CASE (SELECT COUNT(a.og_seq) FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+					WHEN 0 THEN #{og_code} + 1000
+					ELSE (SELECT MAX(a.og_seq) + 1000 FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+				  END 
+				</if>
+				<if test="level == 4">
+				, CASE (SELECT COUNT(a.og_seq) FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+					WHEN 0 THEN #{og_code} + 1
+					ELSE (SELECT MAX(a.og_seq) + 1 FROM organization a WHERE 1=1 AND a.og_pcode = #{og_code})
+				  END 
+				</if>
+				, #{og_code}
+			</if>
+			<if test="seq != null and seq != ''">
+			, #{og_code}
+			, #{og_pcode}
+			</if>			
+			<if test="og_date != null and og_date != ''">, DATE_FORMAT(#{og_date}, '%Y%m%d%H%i%s')</if>
+			<if test="og_status != null and og_status != ''">, #{og_status}</if>
+			<if test="og_group != null and og_group != ''">, #{og_group}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''"> , DATE_FORMAT(NOW(), '%Y%m%d%H%i%s') </if>
+		)
+		ON DUPLICATE KEY UPDATE
+			og_seq = VALUES(og_seq)
+			, og_name = VALUES(og_name)
+			, og_code = VALUES(og_code)
+			, og_pcode = VALUES(og_pcode)
+			<if test="og_date != null and og_date != ''">, og_date = VALUES(og_date)</if>
+			<if test="og_status != null and og_status != ''">, og_status = VALUES(og_status)</if>
+			<if test="og_group != null and og_group != ''">, og_group = VALUES(og_group)</if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+	</insert>
+	
+	<!-- 조직도 삭제 -->
+	<delete id="delete_organize">
+		DELETE FROM organization WHERE 1=1
+		AND og_seq IN <foreach collection="org_seq" item="item" open="(" separator="," close=")"> #{item.seq} </foreach>
+	</delete>
+	
+	<!-- 조직도 엑셀 -->
+	<select id="select_organize_list_excel" resultType="HashMap">
+		SELECT
+			a.og_seq AS seq
+			, a.og_level
+			, a.og_name
+			, a.og_code
+			, a.og_pcode
+			, a.og_date
+			, CASE
+				WHEN og_status=1 THEN '활성'
+				ELSE '비활성' END AS og_status
+			, a.og_group
+			, DATE_FORMAT(a.create_date, '%Y-%m-%d') AS create_date
+			, CASE a.og_level
+				WHEN 1 THEN a.og_code
+			    ELSE LEFT(a.og_code, 3)
+			END AS code
+			, GROUP_CONCAT(b.per_name) AS og_person FROM organization a
+			LEFT JOIN personnel b ON a.og_seq = b.per_organize OR a.og_seq = b.per_team
+			WHERE 1=1
+			GROUP BY a.og_seq
+			ORDER BY code ASC, og_code ASC
+	</select>
+</mapper>

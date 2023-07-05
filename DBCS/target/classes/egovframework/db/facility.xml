@@ -1,0 +1,1008 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.FacilityMapper">
+	
+	<!-- 리스트 정렬 -->
+	<sql id="order">
+	<if test="column == null or column == ''"> ORDER BY seq DESC </if>
+	<if test="column">ORDER BY ${column} ${order} </if>
+	</sql>
+	
+	<!-- 페이징 -->
+	<sql id="paging"> LIMIT #{start_num}, #{row_num} </sql>
+
+	<!-- 표준명 시퀀스 가져오기 -->
+	<select id="select_standard_seq" resultType="HashMap">
+		SELECT
+			ds_seq AS seq
+		FROM device_standard1 WHERE 1=1
+			AND ds_name LIKE '%${ds_name}%'
+	</select>
+	
+	<!-- 팀(조직도 시퀀스) 가져오기 -->
+	<select id="select_organize_seq" resultType="HashMap">
+		<if test="section == 1">
+		SELECT
+			og_seq AS seq
+		FROM organization WHERE 1=1
+			AND og_name LIKE '%${dc_team}%'
+		</if>
+		
+		<if test="section == 2">
+		SELECT
+			a.og_seq AS one, b.og_seq AS two, c.og_seq AS three,
+			d.og_seq AS four, e.og_seq AS five
+		FROM organization a
+		LEFT JOIN organization b ON a.og_code = b.og_pcode AND a.og_code != b.og_code
+		LEFT JOIN organization c ON b.og_code = c.og_pcode AND b.og_code != c.og_code
+		LEFT JOIN organization d ON c.og_code = d.og_pcode AND c.og_code != d.og_code
+		LEFT JOIN organization e ON d.og_code = e.og_pcode AND d.og_code != e.og_code
+		WHERE 1=1
+			AND a.og_group = 1
+			AND a.og_code >= 200000000
+		</if>
+		
+		<if test="section == 3">
+		SELECT
+			og_seq AS seq,
+			REPLACE(og_name, '사업단', '') AS og_name
+		FROM organization WHERE 1=1
+			AND og_group = 1
+			AND og_code >= 200000000
+		ORDER BY og_code ASC
+		</if>
+	</select>
+	
+	<!-- 이전 상태인 기기 시퀀스 가져오기 -->
+	<select id="select_device_status" resultType="HashMap">
+		<if test="dc_status == 1">
+		SELECT
+			dc_seq AS seq
+		FROM device_history WHERE 1=1
+			AND dh_division = 3
+		GROUP BY dc_seq
+		</if>
+		
+		<if test="dc_status == 2">
+		SELECT dc_seq AS seq FROM device WHERE 1=1 AND dc_remove = 2
+		</if>
+		
+		<if test="dc_status == 3">
+		SELECT dc_seq AS seq FROM device WHERE 1=1
+		</if>
+	</select>
+	
+	<!-- 기기 갯수 가져오기 -->
+	<select id="select_device_cnt" resultType="int">
+		SELECT
+			COUNT(DISTINCT a.dc_seq)
+		FROM device a
+		LEFT JOIN device_standard1 b ON a.ds_seq1 = b.ds_seq
+		LEFT JOIN organization c ON a.dc_team = c.og_seq
+		<if test="dc_status != null and dc_status == 1"> 
+		LEFT JOIN device_history d ON a.dc_seq = d.dc_seq
+		</if>
+		LEFT JOIN organization e ON c.og_pcode = e.og_code
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.dc_current >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.dc_current &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="dc_name != null and dc_name != ''"> AND a.dc_name LIKE '%${dc_name}%' </if>
+			<if test="ds_name != null and ds_name != ''"> AND a.ds_seq1 = #{ds_name} </if>
+			<if test="dc_team != null and dc_team != ''"> AND a.dc_team = #{dc_team} </if>
+			<if test="dc_position != null and dc_position != ''"> AND a.dc_position LIKE '%${dc_position}%' </if>			 
+			<if test="dc_status != null and dc_status == 1"> AND d.dh_division = 3 </if>
+			<if test="dc_status != null and dc_status == 2"> AND a.dc_remove = 2 </if>
+			<if test="auth == 1"> AND e.og_seq = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+	</select>
+	
+	<!-- 기기 리스트 가져오기 -->
+	<select id="select_device_list" resultType="HashMap">
+		SELECT
+			a.dc_seq AS seq, a.dc_position, a.dc_location, a.dc_name,
+			b.ds_name, c.og_name AS dc_team, a.dc_current
+		FROM device a
+		LEFT JOIN device_standard1 b ON a.ds_seq1 = b.ds_seq
+		LEFT JOIN organization c ON a.dc_team = c.og_seq
+		<if test="dc_status != null and dc_status == 1">
+		LEFT JOIN device_history d ON a.dc_seq = d.dc_seq
+		</if>
+		LEFT JOIN organization e ON c.og_pcode = e.og_code
+		WHERE 1=1
+			<if test="start_date != null and start_date != ''"> AND a.dc_current >= DATE_FORMAT(#{start_date}, '%Y%m%d000000') </if>
+			<if test="end_date != null and end_date != ''"> AND a.dc_current &lt;= DATE_FORMAT(#{end_date}, '%Y%m%d235959') </if>
+			<if test="dc_name != null and dc_name != ''"> AND a.dc_name LIKE '%${dc_name}%' </if>
+			<if test="ds_name != null and ds_name != ''"> AND a.ds_seq1 = #{ds_name} </if>
+			<if test="dc_team != null and dc_team != ''"> AND a.dc_team = #{dc_team} </if>
+			<if test="dc_position != null and dc_position != ''"> AND a.dc_position LIKE '%${dc_position}%' </if>	
+			<if test="dc_status != null and dc_status == 1"> AND d.dh_division = 3 </if>
+			<if test="dc_status != null and dc_status == 2"> AND a.dc_remove = 2 </if>
+			<if test="auth == 1"> AND e.og_seq = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 기기 관리 추가/수정 -->
+	<insert id="insert_device">
+		INSERT INTO device
+		(
+			dc_seq
+			<if test="dc_name != null and dc_name != ''">, dc_name</if>
+			<if test="ds_seq1 != null and ds_seq1 != ''">, ds_seq1</if>
+			<if test="ds_seq2 != null and ds_seq2 != ''">, ds_seq2</if>
+			<if test="dc_device != null and dc_device != ''">, dc_device</if>
+			<if test="dc_position != null and dc_position != ''">, dc_position</if>
+			<if test="dc_install != null and dc_install != ''">, dc_install</if>
+			<if test="dc_location != null and dc_location != ''">, dc_location</if>
+			<if test="dc_produce != null and dc_produce != ''">, dc_produce</if>
+			<if test="dc_first != null and dc_first != ''">, dc_first</if>
+			<if test="dc_supply != null and dc_supply != ''">, dc_supply</if>
+			<if test="dc_number != null and dc_number != ''">, dc_number</if>
+			<if test="dc_create != null and dc_create != ''">, dc_create</if>
+			<if test="dc_control != null and dc_control != ''">, dc_control</if>
+			<if test="dc_take != null and dc_take != ''">, dc_take</if>
+			<if test="dc_years != null and dc_years != ''">, dc_years</if>
+			<if test="dc_defect != null and dc_defect != ''">, dc_defect</if>
+			<if test="dc_expiry != null and dc_expiry != ''">, dc_expiry</if>
+			<if test="dc_model != null and dc_model != ''">, dc_model</if>
+			<if test="dc_data != null and dc_data != ''">, dc_data</if>
+			<if test="dc_volt != null and dc_volt != ''">, dc_volt</if>
+			<if test="dc_price != null and dc_price != ''">, dc_price</if>
+			<if test="dc_team != null and dc_team != ''">, dc_team</if>
+			<if test="dc_current != null and dc_current != ''">, dc_current</if>
+			<if test="dc_norm != null and dc_norm != ''">, dc_norm</if>
+			<if test="dc_note != null and dc_note != ''">, dc_note</if>
+			<if test="dc_remove != null and dc_remove != ''">, dc_remove</if>
+			, update_date
+			, writer
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			<if test="dc_name != null and dc_name != ''">, #{dc_name}</if>
+			<if test="ds_seq1 != null and ds_seq1 != ''">, #{ds_seq1}</if>
+			<if test="ds_seq2 != null and ds_seq2 != ''">, #{ds_seq2}</if>
+			<if test="dc_device != null and dc_device != ''">, #{dc_device}</if>
+			<if test="dc_position != null and dc_position != ''">, #{dc_position}</if>
+			<if test="dc_install != null and dc_install != ''">, #{dc_install}</if>
+			<if test="dc_location != null and dc_location != ''">, #{dc_location}</if>
+			<if test="dc_produce != null and dc_produce != ''">, #{dc_produce}</if>
+			<if test="dc_first != null and dc_first != ''">, DATE_FORMAT(#{dc_first}, '%Y%m%d%H%i%s')</if>
+			<if test="dc_supply != null and dc_supply != ''">, #{dc_supply}</if>
+			<if test="dc_number != null and dc_number != ''">, #{dc_number}</if>
+			<if test="dc_create != null and dc_create != ''">, DATE_FORMAT(#{dc_create}, '%Y%m%d%H%i%s')</if>
+			<if test="dc_control != null and dc_control != ''">, #{dc_control}</if>
+			<if test="dc_take != null and dc_take != ''">, DATE_FORMAT(#{dc_take}, '%Y%m%d%H%i%s')</if>
+			<if test="dc_years != null and dc_years != ''">, #{dc_years}</if>
+			<if test="dc_defect != null and dc_defect != ''">, #{dc_defect}</if>
+			<if test="dc_expiry != null and dc_expiry != ''">, DATE_FORMAT(#{dc_expiry}, '%Y%m%d%H%i%s')</if>
+			<if test="dc_model != null and dc_model != ''">, #{dc_model}</if>
+			<if test="dc_data != null and dc_data != ''">, #{dc_data}</if>
+			<if test="dc_volt != null and dc_volt != ''">, #{dc_volt}</if>
+			<if test="dc_price != null and dc_price != ''">, #{dc_price}</if>
+			<if test="dc_team != null and dc_team != ''">, #{dc_team}</if>
+			<if test="dc_current != null and dc_current != ''">, DATE_FORMAT(#{dc_current}, '%Y%m%d%H%i%s')</if>
+			<if test="dc_norm != null and dc_norm != ''">, #{dc_norm}</if>
+			<if test="dc_note != null and dc_note != ''">, #{dc_note}</if>
+			<if test="dc_remove != null and dc_remove != ''">, #{dc_remove}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>
+		)
+		ON DUPLICATE KEY UPDATE
+			dc_seq = VALUES(dc_seq)
+			<if test="dc_name != null and dc_name != ''">, dc_name = VALUES(dc_name)</if>
+			<if test="ds_seq1 != null and ds_seq1 != ''">, ds_seq1 = VALUES(ds_seq1)</if>
+			<if test="ds_seq2 != null and ds_seq2 != ''">, ds_seq2 = VALUES(ds_seq2)</if>
+			<if test="dc_device != null and dc_device != ''">, dc_device = VALUES(dc_device)</if>
+			<if test="dc_position != null and dc_position != ''">, dc_position = VALUES(dc_position)</if>
+			<if test="dc_install != null and dc_install != ''">, dc_install = VALUES(dc_install)</if>
+			<if test="dc_location != null and dc_location != ''">, dc_location = VALUES(dc_location)</if>
+			<if test="dc_produce != null and dc_produce != ''">, dc_produce = VALUES(dc_produce)</if>
+			<if test="dc_first != null and dc_first != ''">, dc_first = VALUES(dc_first)</if>
+			<if test="dc_supply != null and dc_supply != ''">, dc_supply = VALUES(dc_supply)</if>
+			<if test="dc_number != null and dc_number != ''">, dc_number = VALUES(dc_number)</if>
+			<if test="dc_create != null and dc_create != ''">, dc_create = VALUES(dc_create)</if>
+			<if test="dc_control != null and dc_control != ''">, dc_control = VALUES(dc_control)</if>
+			<if test="dc_take != null and dc_take != ''">, dc_take = VALUES(dc_take)</if>
+			<if test="dc_years != null and dc_years != ''">, dc_years = VALUES(dc_years)</if>
+			<if test="dc_defect != null and dc_defect != ''">, dc_defect = VALUES(dc_defect)</if>
+			<if test="dc_expiry != null and dc_expiry != ''">, dc_expiry = VALUES(dc_expiry)</if>
+			<if test="dc_model != null and dc_model != ''">, dc_model = VALUES(dc_model)</if>
+			<if test="dc_data != null and dc_data != ''">, dc_data = VALUES(dc_data)</if>
+			<if test="dc_volt != null and dc_volt != ''">, dc_volt = VALUES(dc_volt)</if>
+			<if test="dc_price != null and dc_price != ''">, dc_price = VALUES(dc_price)</if>
+			<if test="dc_team != null and dc_team != ''">, dc_team = VALUES(dc_team)</if>
+			<if test="dc_current != null and dc_current != ''">, dc_current = VALUES(dc_current)</if>
+			<if test="dc_norm != null and dc_norm != ''">, dc_norm = VALUES(dc_norm)</if>
+			<if test="dc_note != null and dc_note != ''">, dc_note = VALUES(dc_note)</if>
+			<if test="dc_remove != null and dc_remove != ''">, dc_remove = VALUES(dc_remove)</if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(dc_seq) FROM device
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND dc_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 이전 및 철거기록 추가/수정 -->
+	<insert id="insert_device_history">
+		INSERT INTO device_history
+		(
+			dh_seq
+			, dc_seq
+			, dh_date
+			, dh_location
+			, dh_install
+			, dh_division
+			, dh_approve
+			, dh_man
+			, dh_team
+			, dh_state
+			, dh_case
+			, update_date
+		)
+		VALUES
+		<if test="section == 1">
+		(
+			NULL
+			, #{seq}
+			, #{dc_first}
+			, ''
+			, #{dc_position}
+			, 1
+			, 0
+			, NULL
+			, NULL
+			, NULL
+			, NULL
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</if>		
+		<if test="section == 2">
+		<foreach collection="multi.dh_seq" index="index" separator=",">
+		(
+			IF(${multi.dh_seq[index]} = 0, NULL, ${multi.dh_seq[index]})
+			, ${seq}
+			, IF('${multi.dh_date[index]}' = '0', 0, '${multi.dh_date[index]}')
+			, '${multi.dh_location[index]}'
+			, '${multi.dh_install[index]}'
+			, ${multi.dh_division[index]}
+			, ${multi.dh_approve[index]}
+			, '${multi.dh_man[index]}'
+			, '${multi.dh_team[index]}'
+			, '${multi.dh_state[index]}'
+			, '${multi.dh_case[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')	
+		)
+		</foreach>
+		</if>
+		ON DUPLICATE KEY UPDATE
+			dh_seq = VALUES(dh_seq)
+			, dc_seq = VALUES(dc_seq)
+			, dh_date = VALUES(dh_date)
+			, dh_location = VALUES(dh_location)
+			, dh_install = VALUES(dh_install)
+			, dh_division = VALUES(dh_division)
+			, dh_approve = VALUES(dh_approve)
+			, dh_man = VALUES(dh_man)
+			, dh_team = VALUES(dh_team)
+			, dh_state = VALUES(dh_state)
+			, dh_case = VALUES(dh_case)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 다른 테이블에 기기 존재 여부 -->
+	<select id="select_device_check" resultType="int">
+		SELECT
+			CASE COUNT(bk_seq)
+				WHEN 0 THEN 1001
+				ELSE 2001
+			END
+		FROM breakdown WHERE 1=1
+			AND dc_seq = #{seq}
+	</select>
+	
+	<!-- 기기 삭제 -->
+	<delete id="delete_device">
+		<if test="section == 1">
+		DELETE FROM device_history WHERE 1=1 AND dc_seq = #{seq}
+		</if>
+		
+		<if test="section == 2">
+		DELETE FROM device WHERE 1=1 AND dc_seq = #{seq}
+		</if>
+		
+		<if test="section == 3">
+		DELETE FROM device_history WHERE 1=1
+		AND dc_seq = #{seq}
+		<if test="dh_seq"> AND dh_seq NOT IN <foreach collection="multi.dh_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+		</if>
+	</delete>
+	
+	<!-- 기기 기본정보 가져오기 -->
+	<select id="select_device" resultType="HashMap">
+		SELECT
+			a.dc_seq AS seq, a.dc_name, a.ds_seq1, a.ds_seq2, a.dc_device, a.dc_position, 
+			a.dc_install, b.name as dc_install_name, a.dc_location, a.dc_produce, c.name as dc_produce_name, a.dc_first, 
+			a.dc_supply, d.name as dc_supply_name, a.dc_number, 
+			a.dc_create, a.dc_control, a.dc_take, a.dc_years, a.dc_defect, a.dc_expiry, a.dc_model, 
+			a.dc_data, a.dc_volt, a.dc_price, a.dc_team, e.og_name as dc_team_name, a.dc_current, a.dc_norm, 
+			a.dc_note, a.dc_remove
+		FROM device a
+		LEFT JOIN enterprise b
+			ON a.dc_install = b.seq
+		LEFT JOIN enterprise c
+			ON a.dc_produce = c.seq
+		LEFT JOIN enterprise d
+			ON a.dc_supply = d.seq
+		LEFT JOIN organization e
+			ON a.dc_team = e.og_seq
+		WHERE 1=1
+			AND a.dc_seq = #{seq}
+	</select>
+	
+	<!-- 기기 이전기록 가져오기 -->
+	<select id="select_device_history" resultType="HashMap">
+		SELECT
+			dh_seq, dc_seq, dh_date, dh_location, dh_install, 
+			dh_division, dh_approve, dh_man, dh_team, dh_state, 
+			dh_case, update_date
+		FROM device_history WHERE 1=1
+			AND dc_seq = #{seq}
+		ORDER BY dh_seq ASC
+	</select>
+	
+	<!-- 파일 정보 가져오기 -->
+	<select id="select_file" resultType="HashMap">
+		SELECT
+			f_seq, tb_seq, f_original, f_unique, f_resize,
+			f_code, f_path, f_repath, f_size
+		FROM file WHERE 1=1
+			AND f_tb = 'device'
+			AND tb_seq = #{dc_seq}
+			OR
+			AND f_tb = 'device'
+			AND tb_seq = #{seq}
+		ORDER BY f_code ASC
+	</select>
+	
+	<!-- 파일 정보 추가/수정 -->
+	<insert id="insert_file">
+		INSERT INTO society
+		(
+			f_seq
+			, f_tb
+			, tb_seq
+			, f_original
+			, f_unique
+			, f_resize
+			, f_code
+			, f_path
+			, f_repath
+			, f_size
+			, f_date
+		)
+		VALUES
+		(
+			#{f_seq}
+			, 'device'
+			, #{dc_seq}
+			, #{f_original}
+			, #{f_unique}
+			, #{f_resize}
+			, #{f_code}
+			, #{f_path}
+			, #{f_repath}
+			, #{f_size}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		ON DUPLICATE KEY UPDATE	
+			f_seq = VALUES(f_seq)
+			, f_tb = VALUES(f_tb)
+			, tb_seq = VALUES(tb_seq)
+			, f_original = VALUES(f_original)
+			, f_unique = VALUES(f_unique)
+			, f_resize = VALUES(f_resize)
+			, f_code = VALUES(f_code)
+			, f_path = VALUES(f_path)
+			, f_repath = VALUES(f_repath)
+			, f_size = VALUES(f_size)
+			, f_date = VALUES(f_date)
+			
+		<selectKey keyProperty="f_seq" resultType="int" order="AFTER">	
+			SELECT
+				f_seq
+			FROM file WHERE 1=1 
+				AND f_tb = 'device'
+				AND tb_seq = #{dc_seq}
+		</selectKey>
+	</insert>
+	
+	<!-- 파일 정보 삭제 -->
+	<delete id="delete_file">
+		DELETE FROM file WHERE 1=1 AND f_seq = #{f_seq}
+	</delete>
+	
+	<!-- 파일 정보 업데이트 -->
+	<update id="update_file">
+		UPDATE device SET f_seq = #{f_seq} WHERE 1=1 AND dc_seq = #{dc_seq}
+	</update>
+	
+	<!-- 표준명 상위 레벨 시퀀스 가져오기 -->
+	<select id="select_standard_parent" resultType="HashMap">		
+		SELECT
+			a.ds_seq AS one, b.ds_seq AS two, c.ds_seq AS three,
+			d.ds_seq AS four, e.ds_seq AS five, f.ds_seq AS six 
+		FROM ${tb_name} a
+		LEFT JOIN ${tb_name} b ON a.ds_pcode = b.ds_code
+		LEFT JOIN ${tb_name} c ON b.ds_pcode = c.ds_code 
+		LEFT JOIN ${tb_name} d ON c.ds_pcode = d.ds_code
+		LEFT JOIN ${tb_name} e ON d.ds_pcode = e.ds_code 
+		LEFT JOIN ${tb_name} f ON e.ds_pcode = f.ds_code
+		WHERE 1=1
+			<if test="section == null">
+				<if test="ds_level">
+				<if test="ds_level &lt; 9"> AND a.ds_level = #{ds_level} </if>
+				</if>
+				<if test="ds_name != null and ds_name != ''"> AND a.ds_name LIKE '%${ds_name}%' </if>
+				<if test="ds_divide == 1"> AND a.ds_khc = 1 </if>
+				<if test="ds_divide == 2"> AND a.ds_khc = 1 </if>
+			</if>
+			
+			<if test="section == 10">
+				<if test="ds_name != null and ds_name != ''"> AND a.ds_name LIKE '%${ds_name}%' </if>
+				<if test="ds_divide == 1"> AND a.ds_khc = 1 </if>
+				<if test="ds_divide == 2"> AND a.ds_khc = 1 </if>
+			</if>
+	</select>	
+	
+	<!-- 표준명 리스트 갯수 가져오기 -->
+	<select id="select_standard_cnt" resultType="int">
+		SELECT 
+			COUNT(a.ds_seq)
+		FROM ${tb_name} a
+		<if test="auth == 1">
+		LEFT JOIN personnel b ON a.writer = b.per_seq 
+		</if>
+		WHERE 1=1
+			<if test="depth_seq"> AND a.ds_seq IN <foreach collection="depth_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+			<if test="depth_none"> AND a.ds_seq = 0 </if>
+			<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+	</select>
+	
+	<!-- 표준명 리스트 가져오기 -->
+	<select id="select_standard_list" resultType="HashMap">
+		SELECT 
+			a.ds_seq AS seq, a.ds_level, a.ds_name, a.ds_code, a.ds_pcode
+		FROM ${tb_name} a
+		<if test="auth == 1">
+		LEFT JOIN personnel b ON a.writer = b.per_seq 
+		</if>
+		WHERE 1=1
+			<if test="depth_seq"> AND a.ds_seq IN <foreach collection="depth_seq" item="item" open="(" separator="," close=")"> #{item} </foreach> </if>
+			<if test="depth_none"> AND a.ds_seq = 0 </if>
+			<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		ORDER BY a.ds_level ASC, a.ds_pcode ASC, a.ds_code ASC
+	</select>
+	
+	<!-- 표준명 상세정보 가져오기 -->
+	<select id="select_standard" resultType="HashMap">
+		SELECT 
+			ds_seq AS seq, ds_name, ds_code, ds_pcode
+			<if test="tb_name == 'device_standard1'">
+			, ds_khc , ds_cne
+			</if>
+		FROM ${tb_name}
+		WHERE 1=1
+			AND ds_seq = #{seq}
+	</select>	
+	
+	<!-- 표준명 부모코드 가져오기 -->
+	<select id="select_standard_pcode" resultType="int">
+		SELECT ds_pcode FROM ${tb_name} WHERE 1=1 AND ds_seq = #{seq}
+	</select>
+	
+	<!-- 표준명 등급 확인 하기 -->
+	<select id="select_standard_level" resultType="int">
+		<if test="ds_pcode != null">
+		SELECT
+			CASE ds_level
+				WHEN ${max} THEN 2001
+				ELSE 1001
+			END	
+		FROM ${tb_name}
+		WHERE 1=1
+			AND ds_code = #{ds_pcode}
+		</if>
+		
+		<if test="ds_pcode == null">
+		SELECT 1
+		</if>
+	</select>
+	
+	<!-- 표준명 하위 레벨이 총 0개인지 99개인지 판단 -->
+	<select id="select_depth_cnt" resultType="int">
+		SELECT
+			CASE COUNT(ds_seq)
+				WHEN 0 THEN 1002
+				WHEN 99999 THEN 3001
+				ELSE 1001				
+			END	
+		FROM ${tb_name}
+		WHERE 1=1
+<!-- 			<if test="ds_pcode == null"> AND ds_level = 1 </if>
+			<if test="ds_pcode != null">
+			AND ds_code NOT IN (#{ds_pcode})
+			AND ds_pcode = #{ds_pcode}
+			</if> -->
+	</select>
+	
+	<!-- 표준명 추가/수정 -->
+	<insert id="insert_standard">
+		INSERT INTO ${tb_name}
+		(
+			ds_seq
+			, ds_level
+			, ds_code
+			, ds_pcode
+			, ds_name
+			, update_date
+			, writer
+			<if test="ds_khc != null and ds_khc != ''"> , ds_khc </if>
+			<if test="ds_cne != null and ds_cne != ''"> , ds_cne </if>
+			<if test="seq == null">, create_date</if>
+		) 
+		VALUES 
+		(
+			#{seq}
+			
+			<!-- 1레벨 생성하는 경우 -->
+			<if test="ds_pcode == null">
+			, 1
+			, (SELECT (IF(COUNT(a.ds_seq) = 0, 100001, MAX(a.ds_code) + 1)) FROM ${tb_name} a WHERE 1=1)
+			, (SELECT (IF(COUNT(a.ds_seq) = 0, 100001, MAX(a.ds_code) + 1)) FROM ${tb_name} a WHERE 1=1)
+			</if>
+			
+			<if test="ds_pcode != null">
+				<if test="seq == null">
+				, (SELECT (a.ds_level + 1) FROM ${tb_name} a WHERE 1=1 AND a.ds_code = #{ds_pcode})
+				, (SELECT (MAX(a.ds_code) + 1) FROM ${tb_name} a WHERE 1=1)
+				</if>
+				
+				<if test="seq != null">
+				, (SELECT a.ds_level FROM ${tb_name} a WHERE 1=1 AND a.ds_seq = #{seq}) 
+				, (SELECT a.ds_code FROM ${tb_name} a WHERE 1=1 AND a.ds_seq = #{seq})
+				</if>
+			, #{ds_pcode}
+			</if>
+			
+			, #{ds_name}			
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="ds_khc != null and ds_khc != ''"> , #{ds_khc} </if>
+			<if test="ds_cne != null and ds_cne != ''"> , #{ds_cne} </if>
+			<if test="seq == null">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>			
+		)
+		ON DUPLICATE KEY UPDATE
+			ds_seq = VALUES(ds_seq)
+			, ds_level = VALUES(ds_level)			
+			, ds_code = VALUES(ds_code)
+			, ds_pcode = VALUES(ds_pcode)
+			, ds_name = VALUES(ds_name)
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)		
+			<if test="ds_khc != null and ds_khc != ''"> , ds_khc = VALUES(ds_khc) </if>
+			<if test="ds_cne != null and ds_cne != ''"> , ds_cne = VALUES(ds_cne) </if>
+	</insert>
+	
+	<!-- 표준명 하위 레벨 시퀀스 가져오기 -->
+	<select id="select_standard_depth" resultType="HashMap">
+		SELECT
+			a.ds_seq AS one, b.ds_seq AS two, c.ds_seq AS three,
+		    d.ds_seq AS four, e.ds_seq AS five, f.ds_seq AS six
+		FROM ${tb_name} a
+		LEFT JOIN ${tb_name} b ON a.ds_code = b.ds_pcode AND a.ds_code != b.ds_code
+		LEFT JOIN ${tb_name} c ON b.ds_code = c.ds_pcode AND b.ds_code != c.ds_code
+		LEFT JOIN ${tb_name} d ON c.ds_code = d.ds_pcode AND c.ds_code != d.ds_code
+		LEFT JOIN ${tb_name} e ON d.ds_code = e.ds_pcode AND d.ds_code != e.ds_code
+		LEFT JOIN ${tb_name} f ON e.ds_code = f.ds_pcode AND e.ds_code != f.ds_code
+		WHERE 1=1
+			AND a.ds_seq = #{seq}
+	</select>
+	
+	<!-- 표준명 하위 레벨까지 기기관리에 포함되어 있는지 확인 -->
+	<select id="select_standard_status" resultType="int">
+		SELECT
+			CASE COUNT(dc_seq)
+				WHEN 0 THEN 1001
+				ELSE 2001
+			END			
+		FROM device WHERE 1=1
+			<if test="section == 1">
+			AND ds_seq1 IN <foreach collection="depth_seq" item="item" open="(" separator="," close=")"> #{item} </foreach>
+			</if>
+			<if test="section == 2">
+			AND ds_seq2 IN <foreach collection="depth_seq" item="item" open="(" separator="," close=")"> #{item} </foreach>
+			</if>
+	</select>
+	
+	<!-- 표준명 삭제 -->
+	<delete id="delete_standard">
+		DELETE FROM ${tb_name} WHERE 1=1 AND ds_seq IN <foreach collection="depth_seq" item="item" open="(" separator="," close=")"> #{item} </foreach>
+	</delete>
+	
+	<!-- 거래처 관리 리스트 개수 구하기 -->
+	<select id="select_account_cnt" resultType="int">
+		SELECT
+			COUNT(a.act_seq)
+		FROM account a
+		<if test="auth == 1">
+		LEFT JOIN personnel b ON a.writer = b.per_seq 
+		</if>
+		WHERE 1=1
+			<if test="act_company != null and act_company != ''">AND a.act_company LIKE '%${act_company}%'</if>
+			<if test="act_ceo != null and act_ceo != ''">AND a.act_ceo LIKE '%${act_ceo}%'</if>
+			<if test="act_manager != null and act_manager != ''">AND a.act_manager LIKE '%${act_manager}%'</if>
+			<if test="act_phone != null and act_phone != ''">AND a.act_phone LIKE '%${act_phone}%'</if>
+			<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+	</select>
+	
+	<!-- 거래처 관리 리스트 구하기 -->
+	<select id="select_account_list" resultType="HashMap">
+		SELECT
+			a.act_seq AS seq, a.act_company, a.act_ceo, a.act_manager, a.act_hp, a.act_fax, a.act_phone
+		FROM account a
+		<if test="auth == 1">
+		LEFT JOIN personnel b ON a.writer = b.per_seq 
+		</if>
+		WHERE 1=1
+			<if test="act_company != null and act_company != ''">AND act_company LIKE '%${act_company}%'</if>
+			<if test="act_ceo != null and act_ceo != ''">AND act_ceo LIKE '%${act_ceo}%'</if>
+			<if test="act_manager != null and act_manager != ''">AND act_manager LIKE '%${act_manager}%'</if>
+			<if test="act_phone != null and act_phone != ''">AND act_phone LIKE '%${act_phone}%'</if>
+			<if test="auth == 1"> AND b.per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND a.writer = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 거래처 관리 추가/수정 -->
+	<insert id="insert_account">
+		INSERT INTO account
+		(
+			act_seq
+			, act_company
+			<if test="act_number">, act_number</if>
+			<if test="act_ceo">, act_ceo</if>
+			<if test="act_status">, act_status</if>
+			, act_phone
+			<if test="act_event">, act_event</if>
+			<if test="act_fax">, act_fax</if>
+			<if test="act_email">, act_email</if>
+			<if test="act_zip">, act_zip</if>
+			<if test="act_addr">, act_addr</if>
+			<if test="act_detail">, act_detail</if>
+			<if test="act_url">, act_url</if>
+			<if test="act_manager">, act_manager</if>
+			<if test="act_hp">, act_hp</if>
+			<if test="act_tag">, act_tag</if>
+			<if test="act_use">, act_use</if>
+			, update_date
+			, writer
+			<if test="seq == null">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			, #{act_company}
+			<if test="act_number">, #{act_number}</if>
+			<if test="act_ceo">, #{act_ceo}</if>
+			<if test="act_status">, #{act_status}</if>
+			, #{act_phone}
+			<if test="act_event">, #{act_event}</if>
+			<if test="act_fax">, #{act_fax}</if>
+			<if test="act_email">, #{act_email}</if>
+			<if test="act_zip">, #{act_zip}</if>
+			<if test="act_addr">, #{act_addr}</if>
+			<if test="act_detail">, #{act_detail}</if>
+			<if test="act_url">, #{act_url}</if>
+			<if test="act_manager">, #{act_manager}</if>
+			<if test="act_hp">, #{act_hp}</if>
+			<if test="act_tag">, #{act_tag}</if>
+			<if test="act_use">, #{act_use}</if>
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			, #{writer}
+			<if test="seq == null">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>		
+		)
+		ON DUPLICATE KEY UPDATE
+			act_seq = VALUES(act_seq)
+			, act_company = VALUES(act_company)
+			<if test="act_number">, act_number = VALUES(act_number)</if>
+			<if test="act_ceo">, act_ceo = VALUES(act_ceo)</if>
+			<if test="act_status">, act_status = VALUES(act_status)</if>
+			, act_phone = VALUES(act_phone)
+			<if test="act_event">, act_event = VALUES(act_event)</if>
+			<if test="act_fax">, act_fax = VALUES(act_fax)</if>
+			<if test="act_email">, act_email = VALUES(act_email)</if>
+			<if test="act_zip">, act_zip = VALUES(act_zip)</if>
+			<if test="act_addr">, act_addr = VALUES(act_addr)</if>
+			<if test="act_detail">, act_detail = VALUES(act_detail)</if>
+			<if test="act_url">, act_url = VALUES(act_url)</if>
+			<if test="act_manager">, act_manager = VALUES(act_manager)</if>
+			<if test="act_hp">, act_hp = VALUES(act_hp)</if>
+			<if test="act_tag">, act_tag = VALUES(act_tag)</if>
+			<if test="act_use">, act_use = VALUES(act_use)</if>
+			, update_date = VALUES(update_date)
+			, writer = VALUES(writer)
+	</insert>
+	
+	<!-- 거래처 상세 정보 가져오기 -->
+	<select id="select_account" resultType="HashMap">
+		SELECT
+			act_seq AS seq, act_company, act_number, act_ceo, act_status, act_phone, 
+			act_event, act_fax, act_email, act_zip, act_addr, act_detail, act_url, 
+			act_manager, act_hp, act_tag, act_use
+		FROM account WHERE 1=1
+			AND act_seq = #{seq}
+	</select>
+	
+	<!-- 거래처 관련 테이블 저장이 되어있는지 확인하기 -->
+	<select id="select_account_table" resultType="int">
+		<!-- 기기관리 -->
+		<if test="section == 1">
+		SELECT
+			CASE COUNT(DISTINCT dc_seq)
+				WHEN 0 THEN 1001
+				ELSE 2001
+			END
+		FROM device WHERE 1=1
+			AND dc_install = #{seq}
+			OR dc_produce = #{seq}
+			OR dc_supply = #{seq}
+		</if>
+		
+		<!-- 계측기관리 -->
+		<if test="section == 2">
+		SELECT
+			CASE COUNT(ms_seq)
+				WHEN 0 THEN 1001
+				ELSE 2001
+			END
+		FROM measure WHERE 1=1
+			AND act_seq = #{seq}		
+		</if>
+	</select>
+	
+	<!-- 거래처 삭제하기 -->
+	<delete id="delete_account">
+		DELETE FROM account WHERE 1=1 AND act_seq = #{seq}
+	</delete>
+	
+	<!-- 기기(표준명1) 개수 가져오기 -->
+	<select id="select_standard1_cnt" resultType="int">
+		SELECT COUNT(ds_seq) FROM device_standard1 WHERE 1=1 AND ds_level = 3
+	</select>
+	
+	<!-- 사업단 개수 가져오기 -->
+	<select id="select_organize_cnt" resultType="int">
+		SELECT COUNT(og_seq) FROM organization WHERE 1=1 AND og_group = 1 AND og_code >= 200000000
+	</select>
+	
+	<!-- 사업단설비현황 -->
+	<select id="select_organize_table" resultType="HashMap">
+		<if test="section == 1">
+			SELECT
+				tb2.ds_name AS type, tb2.ds_seq AS type_seq,
+				tb1.ds_seq, tb1.ds_name AS device, 
+			    COUNT(tb3.og_seq) AS total
+			FROM device_standard1 tb1
+			LEFT JOIN device_standard1 tb2 ON tb1.ds_pcode = tb2.ds_code
+			LEFT JOIN
+			(
+				SELECT
+			    	a.ds_seq1,
+					CASE b.og_group
+			        	WHEN 1 THEN a.dc_team
+			        	ELSE
+			            	CASE c.og_group
+			                	WHEN 1 THEN b.og_pcode
+			                	ELSE NULL
+			            	END
+			    	END AS og_seq
+				FROM device a
+				LEFT JOIN organization b ON a.dc_team = b.og_seq
+				LEFT JOIN organization c ON b.og_pcode = c.og_code
+				WHERE 1=1
+			)tb3 ON tb1.ds_seq = tb3.ds_seq1
+			WHERE 1=1
+			    AND tb1.ds_level = 4
+			GROUP BY tb1.ds_seq
+			ORDER BY tb1.ds_code ASC
+			<include refid="paging"></include>
+		</if>
+		
+		<if test="section == 2">
+			SELECT
+				tb2.ds_name AS type, tb2.ds_seq AS type_seq,
+				tb1.ds_seq, tb1.ds_name AS device,
+				tb3.og_name, tb3.og_seq,
+				COUNT(tb4.ds_seq1) AS value
+			FROM device_standard1 tb1
+			LEFT JOIN device_standard1 tb2 ON tb1.ds_pcode = tb2.ds_code
+            LEFT JOIN organization tb3 ON 1=1 AND tb3.og_group = 1 AND tb3.og_code >= 200000000
+            LEFT JOIN
+			(
+				SELECT
+			    	a.ds_seq1,
+					CASE b.og_group
+			        	WHEN 1 THEN a.dc_team
+			        	ELSE
+			            	CASE c.og_group
+			                	WHEN 1 THEN b.og_pcode
+			                	ELSE NULL
+			            	END
+			    	END AS og_seq
+				FROM device a
+				LEFT JOIN organization b ON a.dc_team = b.og_seq
+				LEFT JOIN organization c ON b.og_pcode = c.og_code
+				WHERE 1=1
+			)tb4 ON tb1.ds_seq = tb4.ds_seq1 AND tb3.og_seq = tb4.og_seq
+			WHERE 1=1
+			    AND tb1.ds_level = 4
+            GROUP BY tb1.ds_seq, tb3.og_seq
+			ORDER BY tb1.ds_code ASC, tb3.og_code ASC
+			<include refid="paging"></include>
+		</if>		
+	</select>
+	
+	<!-- 이전/철거현황 개수 가져오기 -->
+	<select id="select_history_cnt" resultType="int">
+		SELECT
+			COUNT(dh_seq)
+		FROM device_history WHERE 1=1
+			AND dh_division IN (2, 3)
+	</select>
+	
+	<!-- 이전/철거현황 -->
+	<select id="select_history_table" resultType="HashMap">
+		SELECT
+			dh_seq, dh_date, dh_location, dh_install, dh_division,
+		    dh_approve, dh_man, dh_team, dh_state, dh_case
+		FROM device_history WHERE 1=1
+			AND dh_division IN (2, 3)
+		<include refid="order"></include>
+		<include refid="paging"></include>	
+	</select>
+	
+	<!-- 이전/철거현황 엑셀 -->
+	<select id="select_history_excel" resultType="HashMap">
+		SELECT
+			dh_seq, 
+			DATE_FORMAT(dh_date, '%Y-%m-%d') AS dh_date, 
+			dh_location, dh_install, 
+			CASE dh_division
+				WHEN 2 THEN '철거'
+				WHEN 3 THEN '이동'
+				ELSE '신규'
+			END AS dh_division,
+			CASE dh_approve
+				WHEN 1 THEN '미승인'
+				ELSE '승인'
+			END AS dh_approve,
+			dh_man, dh_team, dh_state, dh_case
+		FROM device_history WHERE 1=1
+			AND dh_division IN (2, 3)
+		ORDER BY dh_date ASC
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 기기관리 기본정보 엑셀 -->
+	<select id="select_device_excel" resultType="HashMap">
+		SELECT
+			dc_seq AS seq
+			, dc_name
+			, (SELECT tb.ds_name FROM device_standard1 tb WHERE 1=1 AND tb.ds_seq=ds_seq1 ) AS ds_seq1
+			, (SELECT tb.ds_name FROM device_standard2 tb WHERE 1=1 AND tb.ds_seq=ds_seq2 ) AS ds_seq2
+			, dc_device
+			, dc_position
+			, dc_location
+			, (SELECT tb.act_company FROM account tb WHERE 1=1 AND tb.act_seq=dc_produce ) AS dc_produce
+			, (SELECT tb.act_company FROM account tb WHERE 1=1 AND tb.act_seq=dc_install ) AS dc_install
+			, date_format(dc_first,'%Y-%m-%d') AS  dc_first
+			, (SELECT tb.act_company FROM account tb WHERE 1=1 AND tb.act_seq=dc_supply ) AS dc_supply
+			, dc_number
+			, date_format( dc_create,'%Y-%m-%d') AS dc_create
+			, dc_control
+			, date_format(dc_take,'%Y-%m-%d') AS dc_take
+			, dc_years
+			, dc_defect
+			, date_format(dc_expiry,'%Y-%m-%d') AS dc_expiry
+			, dc_model
+			, dc_data
+			, dc_volt
+			, CONCAT(FORMAT(dc_price,0),'원') AS dc_price
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq=dc_team) AS dc_team
+			, date_format(dc_current,'%Y-%m-%d') AS dc_current
+			, dc_norm
+			, dc_note
+			, dc_remove
+			,CASE
+				WHEN dc_remove=1 THEN '사용중'
+				ELSE '철거' END AS dc_remove
+		FROM device
+		WHERE 1=1
+			AND dc_seq = #{seq}
+	</select>
+	
+	<!-- 기기 이전기록 엑셀 -->
+	<select id="select_device_history_excel" resultType="HashMap">
+		SELECT
+			dh_seq
+			, dc_seq
+			, date_format(dh_date,'%Y-%m-%d') AS dh_date
+			, dh_location
+			, dh_install
+			, CASE
+				WHEN dh_division=1 THEN '신규'
+				WHEN dh_division=2 THEN '철거'
+				ELSE '철거' END  AS dh_division
+			, CASE 
+				WHEN dh_approve=1 THEN '미승인'
+				ELSE '승인' END AS dh_approve
+			, CASE
+				WHEN dh_man IS null THEN '정보없음'
+				ELSE dh_man
+				END AS dh_man
+			, CASE
+				WHEN dh_team IS null THEN '정보없음'
+				ELSE dh_team
+				END AS dh_team
+			, CASE
+				WHEN dh_state IS null THEN '정보없음'
+				ELSE dh_state
+				END AS dh_state
+			, CASE
+				WHEN dh_case IS null THEN '정보없음'
+				ELSE dh_case
+				END AS dh_case
+			, update_date
+		FROM device_history WHERE 1=1
+		AND dc_seq = #{seq}
+		ORDER BY dh_seq ASC
+	</select>
+	
+	<!-- 거래처 상세 정보 엑셀 -->
+	<select id="select_account_excel" resultType="HashMap">
+		SELECT
+			act_seq AS seq
+			, act_company
+			, act_number
+			, act_ceo
+			, act_status
+			, act_phone
+			, act_event
+			, act_fax
+			, act_email
+			, act_zip
+			, act_addr
+			, act_detail
+			, act_url
+			, act_manager
+			, act_hp
+			, act_tag
+			,CASE
+				WHEN act_use=1 THEN '예'
+				ELSE '아니오' END AS act_use
+		FROM account WHERE 1=1
+			AND act_seq = #{seq}
+	</select>
+</mapper>

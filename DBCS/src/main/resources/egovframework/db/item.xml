@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.ItemMapper">
+
+	<!-- 페이징 -->
+	<sql id="paging"> LIMIT #{start_num}, #{row_num} </sql>
+
+	<!-- 항목관리 리스트 개수 구하기 -->
+	<select id="select_item_cnt" resultType="int">
+		SELECT
+			COUNT(*)
+		FROM ${tb_name} WHERE 1=1
+			<if test="division != null and division != ''"> AND division = #{division} </if>
+			<if test="name != null and name != ''"> AND name LIKE '%${name}%' </if>
+	</select>
+
+	<!-- 항목관리 리스트 -->
+	<select id="select_item" resultType="HashMap">
+		SELECT *
+		FROM ${tb_name} WHERE 1=1
+			<if test="division != null and division != ''"> AND division = #{division} </if>
+			<if test="name != null and name != ''"> AND name LIKE '%${name}%' </if>
+		ORDER BY code ASC
+		<if test="tb_name == 'enterprise'">
+		<include refid="paging"></include>
+		</if>
+	</select>
+	
+	<!-- 항목관리 삭제 -->
+	<delete id="delete_item">		
+		DELETE FROM ${tb_name} WHERE 1=1
+		AND seq NOT IN <foreach collection="multi.seq" item="item" open="(" separator="," close=")"> IF(#{item} = '', 0, #{item}) </foreach>		
+	</delete>
+	
+	<!-- 항목관리 시퀀스 초기화 -->
+	<insert id="update_auto_increament">
+		ALTER TABLE ${tb_name} AUTO_INCREMENT = 1
+	</insert>
+
+	<!-- 항목관리 추가/수정 -->
+	<insert id="insert_item">
+		SET @idx := 0;
+	
+		INSERT INTO ${tb_name}
+		(
+			name
+			, seq
+			, code
+			, update_date
+			<if test="division"> , division </if>
+		)
+		VALUES
+		<foreach collection="multi.name" index="index" separator=",">
+		(
+			'${multi.name[index]}'
+			, IF('${multi.seq[index]}' = '', NULL, '${multi.seq[index]}')
+			, @idx := @idx + 1
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			<if test="division"> , IF('${multi.division[index]}' = '', 0, '${multi.division[index]}') </if>
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			name = VALUES(name)
+			, seq = VALUES(seq)
+			, code = VALUES(code)
+			, update_date = VALUES(update_date)
+			<if test="division"> , division = VALUES(division) </if>
+	</insert>
+</mapper>

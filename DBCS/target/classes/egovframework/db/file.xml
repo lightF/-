@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.FileMapper">
+
+	<!-- 파일 존재하는지 확인하기 -->
+	<select id="select_delete_file" resultType="HashMap">
+		SELECT
+			f_seq, f_tb, tb_seq, f_original, f_unique, f_resize,
+			f_code, f_path, f_size
+		FROM file WHERE 1=1
+			AND f_tb = #{tb_name}
+			AND tb_seq = #{seq}
+			<if test="delete_data"> AND f_seq IN <foreach collection="delete_data" item="item" open="(" separator="," close=")">#{item.seq}</foreach> </if>
+			<if test="file_seq"> AND f_seq NOT IN <foreach collection="file_seq" item="item" open="(" separator="," close=")">#{item}</foreach> </if>
+			<if test="file_seq2"> AND f_seq NOT IN (#{file_seq2}) </if>
+		ORDER BY f_code ASC
+	</select>
+	
+	<!-- 필요없는 파일 삭제하기 -->
+	<delete id="delete_file">
+		DELETE FROM file WHERE 1=1
+			AND f_tb = #{tb_name}
+			AND tb_seq = #{seq}
+			<if test="delete_data"> AND f_seq IN <foreach collection="delete_data" item="item" open="(" separator="," close=")">#{item.seq}</foreach> </if>
+			<if test="file_seq"> AND f_seq NOT IN <foreach collection="file_seq" item="item" open="(" separator="," close=")">#{item}</foreach> </if>
+			<if test="file_seq2"> AND f_seq NOT IN (#{file_seq2}) </if>
+	</delete>
+	
+	<!-- 파일 정보 저장 -->
+	<insert id="insert_file">	
+		<if test="type == 1">
+		SET @idx := 0;
+		
+		INSERT INTO file
+		(
+			f_seq
+			, f_code
+			, f_date
+		)
+		VALUES
+		<foreach collection="file_seq" item="item" separator=",">
+		(
+			#{item}
+			, @idx := @idx + 1
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			f_seq = VALUES(f_seq)
+			, f_code = VALUES(f_code)
+			, f_date = VALUES(f_date)
+		</if>
+		
+		<if test="type == 2">
+		INSERT INTO file 
+		( 
+		    f_tb 
+		    , tb_seq 
+		    , f_original 
+		    , f_unique 
+		    , f_code 
+		    , f_path 
+		    , f_size 
+		    , f_date 
+		)
+		VALUES 
+		<foreach collection="new_file" item="item" separator=",">
+		(
+			#{tb_name}
+			, #{seq}
+			, '${item.f_original}'
+			, #{item.f_unique}
+			, #{item.f_code}
+			, #{item.f_path}
+			, #{item.f_size}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')	
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+		    f_tb = VALUES(f_tb)
+		    , tb_seq = VALUES(tb_seq)
+		    , f_original = VALUES(f_original)
+		    , f_unique = VALUES(f_unique)
+		    , f_code = VALUES(f_code)
+		    , f_path = VALUES(f_path)
+		    , f_size = VALUES(f_size)
+		    , f_date = VALUES(f_date)
+		</if>
+		
+		<if test="type == 3">
+		INSERT INTO file 
+		( 
+		    f_tb 
+		    , tb_seq 
+		    , f_original 
+		    , f_unique
+		    , f_resize
+		    , f_code 
+		    , f_path 
+		    , f_repath
+		    , f_size 
+		    , f_date 
+		)
+		VALUES 
+		<foreach collection="new_file" item="item" separator=",">
+		(
+			#{tb_name}
+			, #{seq}
+			, '${item.f_original}'
+			, #{item.f_unique}
+			, #{item.f_resize}
+			, #{item.f_code}
+			, #{item.f_path}
+			, #{item.f_repath}
+			, #{item.f_size}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')	
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+		    f_tb = VALUES(f_tb)
+		    , tb_seq = VALUES(tb_seq)
+		    , f_original = VALUES(f_original)
+		    , f_unique = VALUES(f_unique)
+		    , f_resize = VALUES(f_resize)
+		    , f_code = VALUES(f_code)
+		    , f_path = VALUES(f_path)
+		    , f_repath = VALUES(f_repath)
+		    , f_size = VALUES(f_size)
+		    , f_date = VALUES(f_date)
+		</if>
+		
+		<if test="type == 4">
+		INSERT INTO file
+		(
+			f_seq
+			, f_code
+			, f_path 
+		    , f_repath
+			, f_date
+		)
+		VALUES
+		(
+			#{seq}
+			, #{f_code}
+			, #{f_path}
+			, #{f_repath}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		ON DUPLICATE KEY UPDATE
+			f_seq = VALUES(f_seq)
+			, f_code = VALUES(f_code)
+			, f_path = VALUES(f_path)
+			, f_repath = VALUES(f_repath)
+			, f_date = VALUES(f_date)
+		</if>
+		
+		<if test="type == 5">
+		INSERT INTO file 
+		( 
+		    f_tb 
+		    , tb_seq
+		    , f_seq 
+		    , f_original 
+		    , f_unique
+		    , f_resize
+		    , f_code 
+		    , f_path 
+		    , f_repath
+		    , f_size 
+		    , f_date 
+		)
+		VALUES 
+		<foreach collection="new_file" item="item" separator=",">
+		(
+			#{tb_name}
+			, #{seq}
+			, IF(#{item.f_seq} = 0, NULL, #{item.f_seq})
+			, '${item.f_original}'
+			, #{item.f_unique}
+			, #{item.f_resize}
+			, #{item.f_code}
+			, #{item.f_path}
+			, #{item.f_repath}
+			, #{item.f_size}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')	
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+		    f_tb = VALUES(f_tb)
+		    , tb_seq = VALUES(tb_seq)
+		    , f_seq = VALUES(f_seq)
+		    , f_original = VALUES(f_original)
+		    , f_unique = VALUES(f_unique)
+		    , f_resize = VALUES(f_resize)
+		    , f_code = VALUES(f_code)
+		    , f_path = VALUES(f_path)
+		    , f_repath = VALUES(f_repath)
+		    , f_size = VALUES(f_size)
+		    , f_date = VALUES(f_date)
+		</if>
+	</insert>
+	
+	<!-- 파일 정보 가져오기 -->
+	<select id="select_file" resultType="HashMap">
+		SELECT 
+			f_seq, tb_seq, f_original, f_unique, f_code, f_path, f_size, f_resize, f_repath
+		FROM file WHERE 1=1
+			AND f_tb = #{tb_name}
+			AND tb_seq = #{seq}
+		ORDER BY f_code ASC
+	</select>
+</mapper>

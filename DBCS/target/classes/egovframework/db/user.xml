@@ -1,0 +1,1651 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.egov.namul.mapper.UserMapper">
+
+	<!-- 리스트 정렬 -->
+	<sql id="order"> 
+	<if test="column == null or column == ''"> ORDER BY seq DESC </if>
+	<if test="column">ORDER BY ${column} ${order} </if>	
+	</sql>
+
+	<!-- 페이징 -->
+	<sql id="paging"> LIMIT #{start_num}, #{row_num} </sql>
+
+	<!-- 멤버 정보 가져오기 -->
+	<select id="select_member" resultType="HashMap">
+		SELECT
+			*
+		FROM personnel WHERE 1=1
+			AND per_id = #{id}
+			AND per_pwd = #{password}
+	</select>
+	
+	<!-- 사업단/팀 시퀀스 가져오기 -->
+	<select id="select_org_seq" resultType="HashMap">
+		SELECT
+			og_seq
+		FROM organization WHERE 1=1	
+		<if test="section == 1">					
+			AND og_group = 1
+			AND og_name LIKE '%${org_name}%'
+		</if>		
+		<if test="section == 2">
+			AND og_name LIKE '%${team_name}%'
+		</if>
+	</select>
+	
+	<!-- 담당업무 시퀀스 가져오기 -->
+	<select id="select_task_seq" resultType="HashMap">
+		SELECT 
+			seq AS at_seq
+		FROM assign_task WHERE 1=1
+			AND name LIKE '%${at_name}%'
+	</select>
+	
+	<!-- 직위 시퀀스 가져오기 -->
+	<select id="select_position_seq" resultType="HashMap">
+		SELECT 
+			seq AS pos_seq
+		FROM position WHERE 1=1
+			AND name LIKE '%${pos_name}%'
+	</select>
+	
+	<!-- 직급 시퀀스 가져오기 -->
+	<select id="select_grade_seq" resultType="HashMap">
+		SELECT 
+			seq AS jg_seq
+		FROM job_grade WHERE 1=1
+			AND name LIKE '%${jg_name}%'
+	</select>
+	
+	<!-- 직책 시퀀스 가져오기 -->
+	<select id="select_job_seq" resultType="HashMap">
+		SELECT 
+			seq AS j_seq
+		FROM job WHERE 1=1
+			AND name LIKE '%${j_name}%'
+	</select>
+	
+	<!-- 직원 리스트 총 갯수 가져오기 -->
+	<select id="select_member_count" resultType="int">		
+		SELECT
+			COUNT(per_seq)
+		FROM personnel WHERE 1=1 
+			<if test="per_id != null and per_id != ''"> AND per_id LIKE '%${per_id}%' </if>
+		    <if test="per_name != null and per_name != ''"> AND per_name LIKE '%${per_name}%' </if>
+		    <if test="jg_seq != null and jg_seq != ''"> AND jg_seq = #{jg_seq} </if>
+		    <if test="pos_seq != null and pos_seq != ''"> AND pos_seq = #{pos_seq} </if>
+		    <if test="at_seq != null and at_seq != ''"> AND at_seq = #{at_seq} </if>
+		    <if test="per_organize != null and per_organize != ''"> AND per_organize = #{per_organize} </if>
+		    <if test="team_name != null and team_name != ''"> AND per_team = #{team_name} </if>
+		    <if test="pos_list"> AND pos_seq IN <foreach collection="pos_list" item="item" open="(" separator="," close=")"> #{item.pos_seq} </foreach> </if>
+		    <if test="pos_none"> AND pos_seq = 0 </if>
+		    <if test="j_list"> AND j_seq IN <foreach collection="j_list" item="item" open="(" separator="," close=")"> #{item.j_seq} </foreach> </if>
+		    <if test="j_none"> AND j_seq = 0 </if>
+		    <if test="auth == 1"> AND per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND per_seq = #{auth_seq} </if>
+	</select>
+	
+	<!-- 직원 리스트 가져오기 -->
+	<select id="select_member_list" resultType="HashMap">		
+		SELECT
+			per_seq AS seq, per_id, per_name, 
+			(SELECT a.og_name FROM organization a WHERE 1=1 AND a.og_seq = per_organize) AS per_organize,
+			(SELECT a.og_name FROM organization a WHERE 1=1 AND a.og_seq = per_team) AS per_team,
+			at_seq, pos_seq, jg_seq, j_seq
+		FROM personnel WHERE 1=1
+			<if test="per_id != null and per_id != ''"> AND per_id LIKE '%${per_id}%' </if>
+		    <if test="per_name != null and per_name != ''"> AND per_name LIKE '%${per_name}%' </if>
+		    <if test="jg_seq != null and jg_seq != ''"> AND jg_seq = #{jg_seq} </if>
+		    <if test="pos_seq != null and pos_seq != ''"> AND pos_seq = #{pos_seq} </if>
+		    <if test="at_seq != null and at_seq != ''"> AND at_seq = #{at_seq} </if>
+		    <if test="per_organize != null and per_organize != ''"> AND per_organize = #{per_organize} </if>
+		    <if test="team_name != null and team_name != ''"> AND per_team = #{team_name} </if>
+		    <if test="pos_list"> AND pos_seq IN <foreach collection="pos_list" item="item" open="(" separator="," close=")"> #{item.pos_seq} </foreach> </if>
+		    <if test="pos_none"> AND pos_seq = 0 </if>
+		    <if test="j_list"> AND j_seq IN <foreach collection="j_list" item="item" open="(" separator="," close=")"> #{item.j_seq} </foreach> </if>
+		    <if test="j_none"> AND j_seq = 0 </if>
+		    <if test="auth == 1"> AND per_organize = #{auth_seq} </if>
+			<if test="auth == 2"> AND per_seq = #{auth_seq} </if>
+		<include refid="order"></include>
+		<include refid="paging"></include>
+	</select>
+	
+	<!-- 직원 추가/수정 -->
+	<insert id="insert_member">
+		INSERT INTO personnel
+		(
+			per_seq
+			, update_date
+			<if test="ag_seq != null and ag_seq != ''">, ag_seq</if>
+			<if test="per_id != null and per_id != ''">, per_id</if>
+			<if test="per_pwd != null and per_pwd != ''">, per_pwd</if>
+			<if test="per_status != null and per_status != ''">, per_status</if>
+			<if test="per_name != null and per_name != ''">, per_name</if>
+			<if test="per_ename != null and per_ename != ''">, per_ename</if>
+			<if test="per_birth != null and per_birth != ''">, per_birth</if>
+			<if test="per_organize != null and per_organize != ''">, per_organize</if>
+			<if test="per_team != null and per_team != ''">, per_team</if>
+			<if test="per_area != null and per_area != ''">, per_area</if>
+			<if test="at_seq != null and at_seq != ''">, at_seq</if>
+			<if test="per_place != null and per_place != ''">, per_place</if>
+			<if test="jg_seq != null and jg_seq != ''">, jg_seq</if>
+			<if test="pos_seq != null and pos_seq != ''">, pos_seq</if>
+			<if test="per_email != null and per_email != ''">, per_email</if>
+			<if test="j_seq != null and j_seq != ''">, j_seq</if>
+			<if test="per_type != null and per_type != ''">, per_type</if>
+			<if test="per_zip != null and per_zip != ''">, per_zip</if>
+			<if test="per_addr != null and per_addr != ''">, per_addr</if>
+			<if test="per_detail != null and per_detail != ''">, per_detail</if>
+			<if test="per_home != null and per_home != ''">, per_home</if>
+			<if test="per_mobile != null and per_mobile != ''">, per_mobile</if>
+			<if test="per_office != null and per_office != ''">, per_office</if>
+			<if test="per_join != null and per_join != ''">, per_join</if>
+			<if test="per_promote != null and per_promote != ''">, per_promote</if>
+			<if test="per_resign != null and per_resign != ''">, per_resign</if>
+			<if test="car_model != null and car_model != ''">, car_model</if>
+			<if test="car_number != null and car_number != ''">, car_number</if>
+			<if test="car_name != null and car_name != ''">, car_name</if>
+			<if test="seq == null or seq == ''">, create_date</if>
+		)
+		VALUES
+		(
+			IF(#{seq} = '', NULL, #{seq})
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+			<if test="ag_seq != null and ag_seq != ''">, #{ag_seq}</if>
+			<if test="per_id != null and per_id != ''">, #{per_id}</if>
+			<if test="per_pwd != null and per_pwd != ''">, #{per_pwd}</if>
+			<if test="per_status != null and per_status != ''">, #{per_status}</if>
+			<if test="per_name != null and per_name != ''">, #{per_name}</if>
+			<if test="per_ename != null and per_ename != ''">, #{per_ename}</if>
+			<if test="per_birth != null and per_birth != ''">, DATE_FORMAT(#{per_birth}, '%Y%m%d%H%i%s')</if>
+			<if test="per_organize != null and per_organize != ''">, #{per_organize}</if>
+			<if test="per_team != null and per_team != ''">, #{per_team}</if>
+			<if test="per_area != null and per_area != ''">, #{per_area}</if>
+			<if test="at_seq != null and at_seq != ''">, #{at_seq}</if>
+			<if test="per_place != null and per_place != ''">, #{per_place}</if>
+			<if test="jg_seq != null and jg_seq != ''">, #{jg_seq}</if>
+			<if test="pos_seq != null and pos_seq != ''">, #{pos_seq}</if>
+			<if test="per_email != null and per_email != ''">, #{per_email}</if>
+			<if test="j_seq != null and j_seq != ''">, #{j_seq}</if>
+			<if test="per_type != null and per_type != ''">, #{per_type}</if>
+			<if test="per_zip != null and per_zip != ''">, #{per_zip}</if>
+			<if test="per_addr != null and per_addr != ''">, #{per_addr}</if>
+			<if test="per_detail != null and per_detail != ''">, #{per_detail}</if>
+			<if test="per_home != null and per_home != ''">, #{per_home}</if>
+			<if test="per_mobile != null and per_mobile != ''">, #{per_mobile}</if>
+			<if test="per_office != null and per_office != ''">, #{per_office}</if>
+			<if test="per_join != null and per_join != ''">, DATE_FORMAT(#{per_join}, '%Y%m%d%H%i%s')</if>
+			<if test="per_promote != null and per_promote != ''">, DATE_FORMAT(#{per_promote}, '%Y%m%d%H%i%s')</if>
+			<if test="per_resign != null and per_resign != ''">, DATE_FORMAT(#{per_resign}, '%Y%m%d%H%i%s')</if>
+			<if test="car_model != null and car_model != ''">, #{car_model}</if>
+			<if test="car_number != null and car_number != ''">, #{car_number}</if>
+			<if test="car_name != null and car_name != ''">, #{car_name}</if>
+			<if test="seq == null or seq == ''">, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')</if>			
+		)
+		ON DUPLICATE KEY UPDATE
+			per_seq = VALUES(per_seq)
+			, update_date = VALUES(update_date)
+			<if test="ag_seq != null and ag_seq != ''">, ag_seq = VALUES(ag_seq)</if>
+			<if test="per_id != null and per_id != ''">, per_id = VALUES(per_id)</if>
+			<if test="per_pwd != null and per_pwd != ''">, per_pwd = VALUES(per_pwd)</if>
+			<if test="per_status != null and per_status != ''">, per_status = VALUES(per_status)</if>
+			<if test="per_name != null and per_name != ''">, per_name = VALUES(per_name)</if>
+			<if test="per_ename != null and per_ename != ''">, per_ename = VALUES(per_ename)</if>
+			<if test="per_birth != null and per_birth != ''">, per_birth = VALUES(per_birth)</if>
+			<if test="per_organize != null and per_organize != ''">, per_organize = VALUES(per_organize)</if>
+			<if test="per_team != null and per_team != ''">, per_team = VALUES(per_team)</if>
+			<if test="per_area != null and per_area != ''">, per_area = VALUES(per_area)</if>
+			<if test="at_seq != null and at_seq != ''">, at_seq = VALUES(at_seq)</if>
+			<if test="per_place != null and per_place != ''">, per_place = VALUES(per_place)</if>
+			<if test="jg_seq != null and jg_seq != ''">, jg_seq = VALUES(jg_seq)</if>
+			<if test="pos_seq != null and pos_seq != ''">, pos_seq = VALUES(pos_seq)</if>
+			<if test="per_email != null and per_email != ''">, per_email = VALUES(per_email)</if>
+			<if test="j_seq != null and j_seq != ''">, j_seq = VALUES(j_seq)</if>
+			<if test="per_type != null and per_type != ''">, per_type = VALUES(per_type)</if>
+			<if test="per_zip != null and per_zip != ''">, per_zip = VALUES(per_zip)</if>
+			<if test="per_addr != null and per_addr != ''">, per_addr = VALUES(per_addr)</if>
+			<if test="per_detail != null and per_detail != ''">, per_detail = VALUES(per_detail)</if>
+			<if test="per_home != null and per_home != ''">, per_home = VALUES(per_home)</if>
+			<if test="per_mobile != null and per_mobile != ''">, per_mobile = VALUES(per_mobile)</if>
+			<if test="per_office != null and per_office != ''">, per_office = VALUES(per_office)</if>
+			<if test="per_join != null and per_join != ''">, per_join = VALUES(per_join)</if>
+			<if test="per_promote != null and per_promote != ''">, per_promote = VALUES(per_promote)</if>
+			<if test="per_resign != null and per_resign != ''">, per_resign = VALUES(per_resign)</if>
+			<if test="car_model != null and car_model != ''">, car_model = VALUES(car_model)</if>
+			<if test="car_number != null and car_number != ''">, car_number = VALUES(car_number)</if>
+			<if test="car_name != null and car_name != ''">, car_name = VALUES(car_name)</if>
+			
+		<selectKey keyProperty="seq" resultType="int" order="AFTER">	
+			SELECT
+				MAX(per_seq) FROM personnel 
+			WHERE 1=1
+			<if test="seq != null and seq != ''"> AND per_seq = #{seq} </if>
+		</selectKey>
+	</insert>
+	
+	<!-- 학력사항 삭제 -->
+	<delete id="delete_member_school">
+		DELETE FROM school_career WHERE 1=1
+		AND per_seq = #{seq}
+		<if test="sc_seq"> AND sc_seq NOT IN <foreach collection="multi.sc_seq" item="item" open="(" close=")" separator=","> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 학력사항 추가/수정 -->
+	<insert id="insert_member_school">
+		INSERT INTO school_career
+		(
+			sc_seq
+			, per_seq
+			, sc_enter
+			, sc_finish
+			, sc_name
+			, sc_major
+			, sc_relation
+			, fe_seq
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.sc_seq" index="index" separator=",">
+		(	
+			IF(${multi.sc_seq[index]} = 0, NULL, ${multi.sc_seq[index]})				
+			, ${seq}				
+			, CASE '${multi.sc_enter[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.sc_enter[index]}', '%Y%m%d%H%i%s')
+			  END
+			, CASE '${multi.sc_finish[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.sc_finish[index]}', '%Y%m%d%H%i%s')
+			  END
+			, '${multi.sc_name[index]}'
+			, '${multi.sc_major[index]}'
+			, ${multi.sc_relation[index]}
+			, IF(${multi.fe_seq[index]} = 0, NULL, ${multi.fe_seq[index]})
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)	
+		</foreach>	
+		ON DUPLICATE KEY UPDATE
+			sc_seq = VALUES(sc_seq)
+			, per_seq = VALUES(per_seq)
+			, sc_enter = VALUES(sc_enter)
+			, sc_finish = VALUES(sc_finish)
+			, sc_name = VALUES(sc_name)
+			, sc_major = VALUES(sc_major)
+			, sc_relation = VALUES(sc_relation)
+			, fe_seq = VALUES(fe_seq)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 교육이력 삭제 -->
+	<delete id="delete_member_edu">
+		DELETE FROM education WHERE 1=1
+		AND per_seq = #{seq}
+		<if test="ed_seq"> AND ed_seq NOT IN <foreach collection="multi.ed_seq" item="item" open="(" close=")" separator=","> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 교육이력 추가/수정 -->
+	<insert id="insert_member_edu">
+		INSERT INTO education
+		(
+			ed_seq
+			, per_seq
+			, ed_finish
+			, ed_expire
+			, ed_organ
+			, ed_process
+			, ed_edu
+			, ed_score
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.ed_seq" index="index" separator=",">
+		(
+			IF(${multi.ed_seq[index]} = 0, NULL, ${multi.ed_seq[index]})				
+			, ${seq}	
+			, CASE '${multi.ed_finish[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.ed_finish[index]}', '%Y%m%d%H%i%s')
+			  END
+			, CASE '${multi.ed_expire[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.ed_expire[index]}', '%Y%m%d%H%i%s')
+			  END
+			, '${multi.ed_organ[index]}'
+			, '${multi.ed_process[index]}'
+			, '${multi.ed_edu[index]}'
+			, ${multi.ed_score[index]}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			ed_seq = VALUES(ed_seq)
+			, per_seq = VALUES(per_seq)
+			, ed_finish = VALUES(ed_finish)
+			, ed_expire = VALUES(ed_expire)
+			, ed_organ = VALUES(ed_organ)
+			, ed_process = VALUES(ed_process)
+			, ed_edu = VALUES(ed_edu)
+			, ed_score = VALUES(ed_score)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 자격면허 삭제 -->
+	<delete id="delete_member_license">
+		DELETE FROM license WHERE 1=1
+		AND per_seq = #{seq}
+		<if test="l_seq"> AND l_seq NOT IN <foreach collection="multi.l_seq" item="item" open="(" close=")" separator=","> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 자격면허 추가/수정 -->
+	<insert id="insert_member_license">
+		INSERT INTO license
+		(
+			l_seq
+			, per_seq
+			, l_finish
+			, l_expire
+			, l_organ
+			, l_name
+			, l_grade
+			, l_num
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.l_seq" index="index" separator=",">
+		(
+			IF(${multi.l_seq[index]} = 0, NULL, ${multi.l_seq[index]})				
+			, ${seq}		
+			, CASE '${multi.l_finish[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.l_finish[index]}', '%Y%m%d%H%i%s')
+			  END
+			, CASE '${multi.l_expire[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.l_expire[index]}', '%Y%m%d%H%i%s')
+			  END
+			, '${multi.l_organ[index]}'
+			, '${multi.l_name[index]}'
+			, '${multi.l_grade[index]}'
+			, '${multi.l_num[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			l_seq = VALUES(l_seq)
+			, per_seq = VALUES(per_seq)
+			, l_finish = VALUES(l_finish)
+			, l_expire = VALUES(l_expire)
+			, l_organ = VALUES(l_organ)
+			, l_name = VALUES(l_name)
+			, l_grade = VALUES(l_grade)
+			, l_num = VALUES(l_num)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 타사이력 삭제 -->
+	<delete id="delete_member_career">
+		DELETE FROM other_career WHERE 1=1
+		AND per_seq = #{seq}
+		<if test="oc_seq"> AND oc_seq NOT IN <foreach collection="multi.oc_seq" item="item" open="(" close=")" separator=","> #{item} </foreach> </if>
+	</delete>	
+	
+	<!-- 타사이력 추가/수정 -->
+	<insert id="insert_member_career">
+		INSERT INTO other_career
+		(
+			oc_seq
+			, per_seq
+			, oc_join
+			, oc_resign
+			, oc_name
+			, oc_note
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.oc_seq" index="index" separator=",">
+		(
+			IF(${multi.oc_seq[index]} = 0, NULL, ${multi.oc_seq[index]})				
+			, ${seq}
+			, CASE '${multi.oc_join[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.oc_join[index]}', '%Y%m%d%H%i%s')
+			  END
+			, CASE '${multi.oc_resign[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.oc_resign[index]}', '%Y%m%d%H%i%s')
+			  END
+			, '${multi.oc_name[index]}'
+			, '${multi.oc_note[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			oc_seq = VALUES(oc_seq)
+			, per_seq = VALUES(per_seq)
+			, oc_join = VALUES(oc_join)
+			, oc_resign = VALUES(oc_resign)
+			, oc_name = VALUES(oc_name)
+			, oc_note = VALUES(oc_note)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 프로젝트 삭제 -->
+	<delete id="delete_member_project">
+		DELETE FROM project WHERE 1=1
+		AND per_seq = #{seq}
+		<if test="proj_seq"> AND proj_seq NOT IN <foreach collection="multi.proj_seq" item="item" open="(" close=")" separator=","> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 프로젝트 추가/수정 -->
+	<insert id="insert_member_project">
+		INSERT INTO project
+		(
+			proj_seq
+			, per_seq
+			, proj_start
+			, proj_end
+			, proj_place
+			, proj_name
+			, proj_part
+			, proj_position
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.proj_seq" index="index" separator=",">
+		(
+			IF(${multi.proj_seq[index]} = 0, NULL, ${multi.proj_seq[index]})				
+			, ${seq}	
+			, CASE '${multi.proj_start[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.proj_start[index]}', '%Y%m%d%H%i%s')
+			  END
+			, CASE '${multi.proj_end[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.proj_end[index]}', '%Y%m%d%H%i%s')
+			  END
+			, '${multi.proj_place[index]}'
+			, '${multi.proj_name[index]}'
+			, '${multi.proj_part[index]}'
+			, '${multi.proj_position[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			proj_seq = VALUES(proj_seq)
+			, per_seq = VALUES(per_seq)
+			, proj_start = VALUES(proj_start)
+			, proj_end = VALUES(proj_end)
+			, proj_place = VALUES(proj_place)
+			, proj_name = VALUES(proj_name)
+			, proj_part = VALUES(proj_part)
+			, proj_position = VALUES(proj_position)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 발주처 삭제 -->
+	<delete id="delete_member_order">
+		DELETE FROM place_order WHERE 1=1
+		AND per_seq = #{seq}
+		<if test="po_seq"> AND po_seq NOT IN <foreach collection="multi.po_seq" item="item" open="(" close=")" separator=","> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 발주처 추가/수정 -->
+	<insert id="insert_member_order">
+		INSERT INTO place_order
+		(
+			po_seq
+			, per_seq
+			, po_start
+			, po_end
+			, po_place
+			, po_manage
+			, po_part
+			, po_system
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.po_seq" index="index" separator=",">
+		(
+			IF(${multi.po_seq[index]} = 0, NULL, ${multi.po_seq[index]})				
+			, ${seq}	
+			, CASE '${multi.po_start[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.po_start[index]}', '%Y%m%d%H%i%s')
+			  END
+			, CASE '${multi.po_end[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.po_end[index]}', '%Y%m%d%H%i%s')
+			  END	
+			, '${multi.po_place[index]}'
+			, '${multi.po_manage[index]}'
+			, '${multi.po_part[index]}'
+			, '${multi.po_system[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE
+			po_seq = VALUES(po_seq)
+			, per_seq = VALUES(per_seq)
+			, po_start = VALUES(po_start)
+			, po_end = VALUES(po_end)
+			, po_place = VALUES(po_place)
+			, po_manage = VALUES(po_manage)
+			, po_part = VALUES(po_part)
+			, po_system = VALUES(po_system)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 협회경력 삭제 -->
+	<delete id="delete_member_society">
+		DELETE FROM society WHERE 1=1
+		AND per_seq = #{seq}
+		<if test="soc_seq"> AND soc_seq NOT IN <foreach collection="multi.soc_seq" item="item" open="(" close=")" separator=","> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 경력정보 삭제 -->
+	<delete id="delete_member_level">
+		DELETE FROM level_career WHERE 1=1
+		AND per_seq = #{seq}
+		<if test="lv_sep"> AND lv_sep NOT IN <foreach collection="multi.lv_sep" item="item" open="(" close=")" separator=","> #{item} </foreach> </if>
+	</delete>
+	
+	<!-- 협회경력 추가/수정 -->
+	<insert id="insert_member_society">
+		INSERT INTO society
+		(
+			soc_seq
+			, per_seq
+			, soc_start
+			, soc_end
+			, soc_place
+			, soc_manage
+			, soc_part
+			, soc_system
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.soc_seq" index="index" separator=",">
+		(
+			IF(${multi.soc_seq[index]} = 0, NULL, ${multi.soc_seq[index]})				
+			, ${seq}
+			, CASE '${multi.soc_start[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.soc_start[index]}', '%Y%m%d%H%i%s')
+			  END	
+			, CASE '${multi.soc_end[index]}'
+				WHEN '' THEN 0
+				ELSE DATE_FORMAT('${multi.soc_end[index]}', '%Y%m%d%H%i%s')
+			  END
+			, '${multi.soc_place[index]}'
+			, '${multi.soc_manage[index]}'
+			, '${multi.soc_part[index]}'
+			, '${multi.soc_system[index]}'
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE	
+			soc_seq = VALUES(soc_seq)
+			, per_seq = VALUES(per_seq)
+			, soc_start = VALUES(soc_start)
+			, soc_end = VALUES(soc_end)
+			, soc_place = VALUES(soc_place)
+			, soc_manage = VALUES(soc_manage)
+			, soc_part = VALUES(soc_part)
+			, soc_system = VALUES(soc_system)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 경력정보 추가/수정 -->
+	<insert id="insert_member_level">
+		INSERT INTO level_career
+		(
+			lv_seq
+			, per_seq
+			, lv_cp
+			, lv_no
+			, lv_date
+			, lv_level
+			, lv_standard
+			, lv_update
+			, update_date
+		)
+		VALUES
+		<foreach collection="multi.lv_seq" index="index" separator=",">
+		(
+			IF(${multi.lv_seq[index]} = 0, NULL, ${multi.lv_seq[index]})				
+			, ${seq}
+			, IF('${multi.lv_cp[index]}' = '', NULL, '${multi.lv_cp[index]}')
+			, IF('${multi.lv_no[index]}' = '', NULL, '${multi.lv_no[index]}') 
+			, IF('${multi.lv_date[index]}' = '', NULL, DATE_FORMAT('${multi.lv_date[index]}', '%Y%m%d%H%i%s'))
+			, IF('${multi.lv_level[index]}' = '', NULL, cast('${multi.lv_level[index]}' as signed)) 
+			, IF('${multi.lv_standard[index]}' = '', NULL, cast('${multi.lv_standard[index]}' as signed)) 
+			, IF('${multi.update_date[index]}' = '', NULL, DATE_FORMAT('${multi.update_date[index]}', '%Y%m%d%H%i%s')) 
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		</foreach>
+		ON DUPLICATE KEY UPDATE	
+			lv_seq = VALUES(lv_seq)
+			, per_seq = VALUES(per_seq)
+			, lv_cp = VALUES(lv_cp)
+			, lv_no = VALUES(lv_no)
+			, lv_date = VALUES(lv_date)
+			, lv_level = VALUES(lv_level)
+			, lv_standard = VALUES(lv_standard)
+			, lv_update = VALUES(lv_update)
+			, update_date = VALUES(update_date)
+	</insert>
+	
+	<!-- 프로필 파일 정보 가져오기 -->
+	<select id="select_file" resultType="HashMap">
+		SELECT
+			f_seq, tb_seq, f_original, f_unique, f_resize,
+			f_code, f_path, f_repath, f_size
+		FROM file WHERE 1=1
+			AND f_tb = 'personnel'
+			AND tb_seq = #{per_seq}
+			OR
+			AND f_tb = 'personnel'
+			AND tb_seq = #{seq}
+		ORDER BY f_code ASC
+	</select>
+	
+	<!-- 프로필 파일 정보 추가/수정 -->
+	<insert id="insert_file">
+		INSERT INTO society
+		(
+			f_seq
+			, f_tb
+			, tb_seq
+			, f_original
+			, f_unique
+			, f_resize
+			, f_code
+			, f_path
+			, f_repath
+			, f_size
+			, f_date
+		)
+		VALUES
+		(
+			#{f_seq}
+			, 'personnel'
+			, #{per_seq}
+			, #{f_original}
+			, #{f_unique}
+			, #{f_resize}
+			, #{f_code}
+			, #{f_path}
+			, #{f_repath}
+			, #{f_size}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		ON DUPLICATE KEY UPDATE	
+			f_seq = VALUES(f_seq)
+			, f_tb = VALUES(f_tb)
+			, tb_seq = VALUES(tb_seq)
+			, f_original = VALUES(f_original)
+			, f_unique = VALUES(f_unique)
+			, f_resize = VALUES(f_resize)
+			, f_code = VALUES(f_code)
+			, f_path = VALUES(f_path)
+			, f_repath = VALUES(f_repath)
+			, f_size = VALUES(f_size)
+			, f_date = VALUES(f_date)
+			
+		<selectKey keyProperty="f_seq" resultType="int" order="AFTER">	
+			SELECT
+				f_seq
+			FROM file WHERE 1=1 
+				AND f_tb = 'personnel'
+				AND tb_seq = #{per_seq}
+		</selectKey>
+	</insert>
+	
+	<!-- 프로필 파일 정보 삭제 -->
+	<delete id="delete_file">
+		DELETE FROM file WHERE 1=1 AND f_seq = #{f_seq}
+	</delete>
+	
+	<!-- 프로필 파일 정보 업데이트 -->
+	<update id="update_file">
+		UPDATE personnel SET f_seq = #{f_seq} WHERE 1=1 AND per_seq = #{per_seq}
+	</update>
+	
+	<!-- 직원 정보 가져오기 -->
+	<select id="select_profile" resultType="HashMap">
+		<!-- 직원 기본 정보 가져오기 -->
+		<if test="section == 1">
+		SELECT
+			a.per_seq AS seq, a.per_name, a.per_ename, a.per_birth, a.per_cname, 
+			a.per_organize, a.per_area, a.per_team, a.at_seq, a.per_place, 
+			a.jg_seq, a.per_id, a.pos_seq, a.per_email, a.j_seq, a.per_type, 
+			a.per_zip, a.per_addr, a.per_detail, a.per_home, a.per_mobile, 
+			a.per_office, a.per_join, a.per_promote, a.per_resign, 
+			b.f_seq, b.f_original, b.f_unique, b.f_resize, b.f_path, b.f_repath
+		FROM personnel a
+		LEFT JOIN file b ON a.per_seq = b.tb_seq AND b.f_tb = 'personnel'
+		WHERE 1=1
+			AND a.per_seq = #{seq}
+		</if>
+		
+		<!-- 직원 학력사항 가져오기  -->
+		<if test="section == 2">
+		SELECT *		
+		FROM school_career WHERE 1=1
+			AND per_seq = #{seq}
+		ORDER BY sc_seq ASC		
+		</if>
+		
+		<!-- 직원 교육이력 -->
+		<if test="section == 3">
+		SELECT *
+		FROM education WHERE 1=1
+			AND per_seq = #{seq}
+		ORDER BY ed_seq ASC		
+		</if>
+		
+		<!-- 직원 자격면허 -->
+		<if test="section == 4">
+		SELECT * 
+		FROM license WHERE 1=1
+			AND per_seq = #{seq}
+		ORDER BY l_seq ASC		
+		</if>
+		
+		<!-- 직원 타사이력 -->
+		<if test="section == 5">
+		SELECT *
+		FROM other_career WHERE 1=1
+			AND per_seq = #{seq}
+		ORDER BY oc_seq ASC		
+		</if>
+		
+		<!-- 직원 자사이력 -->
+		<if test="section == 6">
+		SELECT * 
+		FROM career WHERE 1=1
+			AND per_seq = #{seq}
+		ORDER BY c_seq ASC		
+		</if>
+		
+		<!-- 직원 프로젝트 -->
+		<if test="section == 7">
+		SELECT * 
+		FROM project WHERE 1=1
+			AND per_seq = #{seq}
+		ORDER BY proj_seq ASC		
+		</if>
+		
+		<!-- 직원 발주처 -->
+		<if test="section == 8">
+		SELECT * 
+		FROM place_order WHERE 1=1
+			AND per_seq = #{seq}
+		ORDER BY po_seq ASC		
+		</if>
+		
+		<!-- 직원 협회경력 -->
+		<if test="section == 9">
+		SELECT * FROM society WHERE 1=1
+			AND per_seq = #{seq}
+		ORDER BY soc_seq ASC		
+		</if>
+		
+		<!-- 직원 기타정보 -->
+		<if test="section == 10">
+		SELECT
+			per_seq AS seq, car_model, car_number, car_name, per_status, ag_seq
+		FROM personnel
+		WHERE 1=1
+			AND per_seq = #{seq}		
+		</if>
+	</select>
+	
+	<!-- 직원 삭제 -->
+	<delete id="delete_member">
+		<!-- 관련 테이블 삭제 -->
+		<if test="section == 1">
+			DELETE
+				b, c, d, e, f, g, h, i
+			FROM personnel a
+			LEFT JOIN school_career b ON a.per_seq = b.per_seq
+			LEFT JOIN education c ON a.per_seq = c.per_seq
+			LEFT JOIN license d ON a.per_seq = d.per_seq
+			LEFT JOIN other_career e ON a.per_seq = e.per_seq
+			LEFT JOIN career f ON a.per_seq = f.per_seq
+			LEFT JOIN project g ON a.per_seq = g.per_seq
+			LEFT JOIN place_order h ON a.per_seq = h.per_seq
+			LEFT JOIN society i ON a.per_seq = i.per_seq
+			WHERE 1=1
+				AND a.per_seq = #{seq}
+		</if>
+		
+		<!-- 인력 테이블 삭제 -->
+		<if test="section == 2">
+			DELETE FROM personnel WHERE 1=1 AND per_seq = #{seq}
+		</if>
+	</delete>
+	
+	<!-- 자사이력 변동사항 가져오기 -->
+	<select id="select_career_status" resultType="int">
+		<!-- 현재와 변동이 있는지 확인 -->
+		<if test="section == 1">
+		SELECT
+			CASE 
+				WHEN #{per_team} != per_team THEN 1001
+				ELSE
+					CASE 
+						WHEN #{at_seq} != at_seq THEN 1001
+						ELSE
+							CASE
+								WHEN #{pos_seq} != pos_seq THEN 1001
+								ELSE 2001
+							END
+					END
+			END
+		FROM personnel WHERE 1=1
+			AND per_seq = #{seq}
+		</if>
+		
+		<!-- 마지막 자사이력 시퀀스 값 가져오기 -->
+		<if test="section == 2">
+		SELECT
+			IFNULL(MAX(c_seq), 0)
+		FROM career WHERE 1=1
+			AND per_seq = #{seq}
+		</if>
+	</select>
+	
+	<!-- 자사이력 가져오기 -->
+	<select id="select_career_history" resultType="HashMap">
+		<!-- 최초 생성 -->
+		<if test="section == 1">
+		SELECT			
+			0 AS c_seq,
+			tb.per_join AS c_appoint,
+			DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 DAY), '%Y%m%d') AS c_finish,
+			tb.per_place AS c_place,
+			(SELECT a.og_name FROM organization a WHERE 1=1 AND a.og_seq = tb.per_team) AS c_team,
+			(SELECT a.name FROM assign_task a WHERE 1=1 AND a.seq = tb.at_seq) AS c_part,
+			(SELECT a.name FROM position a WHERE 1=1 AND a.seq = tb.pos_seq) AS c_position
+		FROM personnel tb WHERE 1=1
+			AND tb.per_seq = #{seq}
+		</if>
+		
+		<!-- 마지막 이력 종료일 변경 -->
+		<if test="section == 2">
+		SELECT
+			c_seq, c_appoint, DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 DAY), '%Y%m%d') AS c_finish,
+			c_place, c_team, c_part, c_position
+		FROM career WHERE 1=1
+			AND c_seq = #{c_seq}
+		</if>
+		
+		<!-- 새로운 이력 추가 -->
+		<if test="section == 3">
+		SELECT
+			0 AS c_seq,
+			DATE_FORMAT(NOW(), '%Y%m%d') AS c_appoint,
+			0 AS c_finish,
+			tb.per_place AS c_place,
+			(SELECT a.og_name FROM organization a WHERE 1=1 AND a.og_seq = #{per_team}) AS c_team,
+			(SELECT a.name FROM assign_task a WHERE 1=1 AND a.seq = #{at_seq}) AS c_part,
+			(SELECT a.name FROM position a WHERE 1=1 AND a.seq = #{pos_seq}) AS c_position
+		FROM personnel tb WHERE 1=1
+			AND tb.per_seq = #{seq}
+		</if>
+	</select>
+	
+	<!-- 자사이력 추가/수정 -->
+	<insert id="insert_career">
+		INSERT INTO career
+		(
+			c_seq
+			, per_seq
+			, c_appoint
+			, c_finish
+			, c_place
+			, c_team
+			, c_part
+			, c_position
+			, update_date
+		)
+		VALUES
+		(
+			IF(#{c_seq} = 0, NULL, #{c_seq})
+			, #{seq}
+			, DATE_FORMAT(#{c_appoint}, '%Y%m%d%H%i%s')
+			, DATE_FORMAT(#{c_finish}, '%Y%m%d%H%i%s')
+			, #{c_place}
+			, #{c_team}
+			, #{c_part}
+			, #{c_position}
+			, DATE_FORMAT(NOW(), '%Y%m%d%H%i%s')
+		)
+		ON DUPLICATE KEY UPDATE
+			c_seq = VALUES(c_seq)
+			, per_seq = VALUES(per_seq)
+			, c_appoint = VALUES(c_appoint)
+			, c_finish = VALUES(c_finish)
+			, c_place = VALUES(c_place)
+			, c_team = VALUES(c_team)
+			, c_part = VALUES(c_part)
+			, c_position = VALUES(c_position)
+			, update_date = VALUES(update_date)		
+	</insert>
+	
+	<!-- 직급별 인원현황 테이블 -->
+	<select id="select_person_cnt" resultType="HashMap">
+		<!-- 정규직 인원 현황 -->
+		<if test="section == 1">
+		SELECT
+			REPLACE(tb1.og_name, '사업단', '') AS area, 
+			'정규직' AS type,
+			CASE tb1.jg_name
+		    	WHEN '임원' THEN tb1.jg_name
+		        ELSE LEFT(tb1.jg_name, 3)
+		    END AS job,
+		    CASE tb1.jg_name
+		    	WHEN '임원' THEN tb1.jg_name
+		        ELSE RIGHT(tb1.jg_name, 2)
+		    END AS grade,
+		    IFNULL(tb2.cnt, 0) AS value,
+		    tb1.jg_seq, tb1.og_seq, 1 AS type_num
+		FROM 
+		(
+			SELECT
+		    	a.og_seq, a.og_name, a.og_code,
+		    	b.name AS jg_name, b.seq AS jg_seq, b.code AS jg_code
+			FROM organization a
+			LEFT JOIN job_grade b ON 1=1
+			WHERE 1=1 AND a.og_group = 1 AND a.og_code >= 200000000
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+		)tb1
+		LEFT JOIN
+		(
+		    SELECT 
+				b.cnt, a.name AS jg_name, b.per_organize, a.seq AS jg_seq, b.per_type
+		    FROM job_grade a
+		    LEFT JOIN 
+		    (
+		        SELECT
+		        	COUNT(
+		        		CASE
+                        	WHEN tb.per_resign = 0 THEN 1
+                        	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+                        	ELSE 1
+                        END                        
+		        	) AS cnt, 
+		        	tb.jg_seq, 
+		        	tb.per_organize, tb.per_type 
+		        FROM personnel tb WHERE 1=1 
+		        AND tb.per_type = 1 
+		        GROUP BY tb.jg_seq, tb.per_organize
+		    ) b ON a.seq = b.jg_seq
+		    WHERE 1=1
+		)tb2 ON tb1.og_seq = tb2.per_organize AND tb1.jg_seq = tb2.jg_seq
+		WHERE 1=1
+		ORDER BY tb1.og_code ASC, tb1.jg_code ASC
+		</if>
+		
+		<!-- 정규직 인원 현황 계 -->
+		<if test="section == 2">
+		SELECT
+			REPLACE(tb1.og_name, '사업단', '') AS area, 
+			'정규직 계' AS type,			
+		    SUM(IFNULL(tb2.cnt, 0)) AS value,
+		    tb1.jg_seq
+		FROM 
+		(
+			SELECT
+		    	a.og_seq, a.og_name, a.og_code,
+		    	b.name AS jg_name, b.seq AS jg_seq, b.code AS jg_code
+			FROM organization a
+			LEFT JOIN job_grade b ON 1=1
+			WHERE 1=1 AND a.og_group = 1 AND a.og_code >= 200000000
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+		)tb1
+		LEFT JOIN
+		(
+		    SELECT 
+				b.cnt, a.name AS jg_name, b.per_organize, a.seq AS jg_seq, b.per_type
+		    FROM job_grade a
+		    LEFT JOIN 
+		    (
+		        SELECT
+		        	COUNT(
+		        		CASE
+                        	WHEN tb.per_resign = 0 THEN 1
+                        	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+                        	ELSE 1
+                        END
+		        	) AS cnt, 
+		        	tb.jg_seq, 
+		        	tb.per_organize, tb.per_type 
+		        FROM personnel tb WHERE 1=1 
+		        AND tb.per_type = 1 
+		        GROUP BY tb.jg_seq, tb.per_organize
+		    ) b ON a.seq = b.jg_seq
+		    WHERE 1=1
+		)tb2 ON tb1.og_seq = tb2.per_organize AND tb1.jg_seq = tb2.jg_seq
+		WHERE 1=1
+        GROUP BY tb1.og_seq
+		ORDER BY tb1.og_code ASC
+		</if>
+		
+		<!-- 비정규직 인원 현황 -->
+		<if test="section == 3">
+		SELECT
+			REPLACE(tb1.og_name, '사업단', '') AS area,
+		    CASE tb1.seq
+		    	WHEN 2 THEN '계약직'
+		        WHEN 3 THEN '인턴직'
+		        WHEN 4 THEN '촉탁직'
+		    END AS type,
+		    CASE tb1.seq
+		        WHEN 2 THEN '계약직'
+		        WHEN 3 THEN '인턴직'
+		        WHEN 4 THEN '촉탁직'
+		    END AS job,
+		    CASE tb1.seq
+		        WHEN 2 THEN '계약직'
+		        WHEN 3 THEN '인턴직'
+		        WHEN 4 THEN '촉탁직'
+		    END AS grade,
+		    IFNULL(tb2.cnt, 0) AS value
+		FROM 
+		(
+			SELECT
+				a.og_seq, a.og_name, a.og_code, b.seq
+			FROM organization a
+			LEFT JOIN seq_1_to_365 b ON 1=1 AND b.seq > 1 AND b.seq &lt; 5
+			WHERE 1=1 AND a.og_group = 1 AND a.og_code >= 200000000
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+		)tb1
+		LEFT JOIN
+		(		
+			SELECT 
+				b.cnt, b.per_organize, a.seq
+			FROM (SELECT seq FROM seq_1_to_365 WHERE 1=1 AND seq > 1 AND seq &lt; 5) a
+			LEFT JOIN 
+			(
+				SELECT
+					COUNT(
+		        		CASE
+                        	WHEN tb.per_resign = 0 THEN 1
+                        	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+                        	ELSE 1
+                        END
+		        	) AS cnt,
+					tb.per_type, tb.per_organize 
+				FROM personnel tb WHERE 1=1 
+				AND tb.per_type > 1 
+				GROUP BY tb.per_type, tb.per_organize
+			) b ON a.seq = b.per_type
+			WHERE 1=1		
+		)tb2 ON tb1.og_seq = tb2.per_organize AND tb1.seq = tb2.seq
+		WHERE 1=1
+		ORDER BY tb1.og_code ASC, tb1.seq ASC
+		</if>
+		
+		<!-- 비정규직 인원 현황 계 -->
+		<if test="section == 4">
+		SELECT
+			REPLACE(tb1.og_name, '사업단', '') AS area,
+		    '비정규직 계' AS type,
+		    SUM(IFNULL(tb2.cnt, 0)) AS value
+		FROM 
+		(
+			SELECT
+				a.og_seq, a.og_name, a.og_code, b.seq
+			FROM organization a
+			LEFT JOIN seq_1_to_365 b ON 1=1 AND b.seq > 1 AND b.seq &lt; 5
+			WHERE 1=1 AND a.og_group = 1 AND a.og_code >= 200000000
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+		)tb1
+		LEFT JOIN
+		(		
+			SELECT 
+				b.cnt, b.per_organize, a.seq
+			FROM (SELECT seq FROM seq_1_to_365 WHERE 1=1 AND seq > 1 AND seq &lt; 5) a
+			LEFT JOIN 
+			(
+				SELECT
+					COUNT(
+		        		CASE
+                        	WHEN tb.per_resign = 0 THEN 1
+                        	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+                        	ELSE 1
+                        END
+		        	) AS cnt, 
+					tb.per_type, tb.per_organize 
+				FROM personnel tb WHERE 1=1 
+				AND tb.per_type > 1 
+				GROUP BY tb.per_type, tb.per_organize
+			) b ON a.seq = b.per_type
+			WHERE 1=1		
+		)tb2 ON tb1.og_seq = tb2.per_organize AND tb1.seq = tb2.seq
+		WHERE 1=1
+		GROUP BY tb1.og_seq
+		ORDER BY tb1.og_code ASC
+		</if>
+		
+		<!-- 정규직 인원 현황 총계 -->
+		<if test="section == 5">
+		SELECT
+			REPLACE(tb1.og_name, '사업단', '') AS area, 
+			'정규직' AS type,
+			CASE tb1.jg_name
+		    	WHEN '임원' THEN tb1.jg_name
+		        ELSE LEFT(tb1.jg_name, 3)
+		    END AS job,
+		    CASE tb1.jg_name
+		    	WHEN '임원' THEN tb1.jg_name
+		        ELSE RIGHT(tb1.jg_name, 2)
+		    END AS grade,
+		    SUM(IFNULL(tb2.cnt, 0)) AS value,
+		    tb1.jg_seq
+		FROM 
+		(
+			SELECT
+		    	a.og_seq, a.og_name, a.og_code,
+		    	b.name AS jg_name, b.seq AS jg_seq, b.code AS jg_code
+			FROM organization a
+			LEFT JOIN job_grade b ON 1=1
+			WHERE 1=1 AND a.og_group = 1 AND a.og_code >= 200000000
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+		)tb1
+		LEFT JOIN
+		(
+		    SELECT 
+				b.cnt, a.name AS jg_name, b.per_organize, a.seq AS jg_seq, b.per_type
+		    FROM job_grade a
+		    LEFT JOIN 
+		    (
+		        SELECT
+		        	COUNT(
+		        		CASE
+                        	WHEN tb.per_resign = 0 THEN 1
+                        	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+                        	ELSE 1
+                        END
+		        	) AS cnt,
+		        	tb.jg_seq, 
+		        	tb.per_organize, tb.per_type 
+		        FROM personnel tb WHERE 1=1 
+		        AND tb.per_type = 1 
+		        GROUP BY tb.jg_seq, tb.per_organize
+		    ) b ON a.seq = b.jg_seq
+		    WHERE 1=1
+		)tb2 ON tb1.og_seq = tb2.per_organize AND tb1.jg_seq = tb2.jg_seq
+		WHERE 1=1
+        GROUP BY  tb1.jg_seq
+		ORDER BY tb1.og_code ASC, tb1.jg_code ASC
+		</if>
+		
+		<!-- 정규직 인원 현황 계의 총계 -->
+		<if test="section == 6">
+		SELECT
+			'정규직' AS type,
+		    SUM(IFNULL(tb2.cnt, 0)) AS value,
+		    tb1.jg_seq
+		FROM 
+		(
+			SELECT
+		    	a.og_seq, a.og_name, a.og_code,
+		    	b.name AS jg_name, b.seq AS jg_seq, b.code AS jg_code
+			FROM organization a
+			LEFT JOIN job_grade b ON 1=1
+			WHERE 1=1 AND a.og_group = 1 AND a.og_code >= 200000000
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+		)tb1
+		LEFT JOIN
+		(
+		    SELECT 
+				b.cnt, a.name AS jg_name, b.per_organize, a.seq AS jg_seq, b.per_type
+		    FROM job_grade a
+		    LEFT JOIN 
+		    (
+		        SELECT
+		        	COUNT(
+		        		CASE
+                        	WHEN tb.per_resign = 0 THEN 1
+                        	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+                        	ELSE 1
+                        END
+		        	) AS cnt, 
+		        	tb.jg_seq, 
+		        	tb.per_organize, tb.per_type 
+		        FROM personnel tb WHERE 1=1 
+		        AND tb.per_type = 1 
+		        GROUP BY tb.jg_seq, tb.per_organize
+		    ) b ON a.seq = b.jg_seq
+		    WHERE 1=1
+		)tb2 ON tb1.og_seq = tb2.per_organize AND tb1.jg_seq = tb2.jg_seq
+		WHERE 1=1
+		</if>
+		
+		<!-- 비정규직 인원 현황 총계 -->
+		<if test="section == 7">
+		SELECT
+			REPLACE(tb1.og_name, '사업단', '') AS area,
+		    CASE tb1.seq
+		    	WHEN 2 THEN '계약직'
+		        WHEN 3 THEN '인턴직'
+		        WHEN 4 THEN '촉탁직'
+		    END AS type,
+		    CASE tb1.seq
+		        WHEN 2 THEN '계약직'
+		        WHEN 3 THEN '인턴직'
+		        WHEN 4 THEN '촉탁직'
+		    END AS job,
+		    CASE tb1.seq
+		        WHEN 2 THEN '계약직'
+		        WHEN 3 THEN '인턴직'
+		        WHEN 4 THEN '촉탁직'
+		    END AS grade,
+		    SUM(IFNULL(tb2.cnt, 0)) AS value
+		FROM 
+		(
+			SELECT
+				a.og_seq, a.og_name, a.og_code, b.seq
+			FROM organization a
+			LEFT JOIN seq_1_to_365 b ON 1=1 AND b.seq > 1 AND b.seq &lt; 5
+			WHERE 1=1 AND a.og_group = 1 AND a.og_code >= 200000000
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+		)tb1
+		LEFT JOIN
+		(		
+			SELECT 
+				b.cnt, b.per_organize, a.seq
+			FROM (SELECT seq FROM seq_1_to_365 WHERE 1=1 AND seq > 1 AND seq &lt; 5) a
+			LEFT JOIN 
+			(
+				SELECT
+					COUNT(
+		        		CASE
+                        	WHEN tb.per_resign = 0 THEN 1
+                        	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+                        	ELSE 1
+                        END
+		        	) AS cnt, 
+					tb.per_type, tb.per_organize 
+				FROM personnel tb WHERE 1=1 
+				AND tb.per_type > 1 
+				GROUP BY tb.per_type, tb.per_organize
+			) b ON a.seq = b.per_type
+			WHERE 1=1		
+		)tb2 ON tb1.og_seq = tb2.per_organize AND tb1.seq = tb2.seq
+		WHERE 1=1
+        GROUP BY tb1.seq
+		ORDER BY tb1.og_code ASC, tb1.seq ASC
+		</if>
+		
+		<!-- 비정규직 인원 현황 계의 총계 -->
+		<if test="section == 8">
+		SELECT
+			'비정규직' AS type,
+		    SUM(IFNULL(tb2.cnt, 0)) AS value
+		FROM 
+		(
+			SELECT
+				a.og_seq, a.og_name, a.og_code, b.seq
+			FROM organization a
+			LEFT JOIN seq_1_to_365 b ON 1=1 AND b.seq > 1 AND b.seq &lt; 5
+			WHERE 1=1 AND a.og_group = 1 AND a.og_code >= 200000000
+			<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+		)tb1
+		LEFT JOIN
+		(		
+			SELECT 
+				b.cnt, b.per_organize, a.seq
+			FROM (SELECT seq FROM seq_1_to_365 WHERE 1=1 AND seq > 1 AND seq &lt; 5) a
+			LEFT JOIN 
+			(
+				SELECT
+					COUNT(
+		        		CASE
+                        	WHEN tb.per_resign = 0 THEN 1
+                        	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+                        	ELSE 1
+                        END
+		        	) AS cnt,
+					tb.per_type, tb.per_organize 
+				FROM personnel tb WHERE 1=1 
+				AND tb.per_type > 1 
+				GROUP BY tb.per_type, tb.per_organize
+			) b ON a.seq = b.per_type
+			WHERE 1=1		
+		)tb2 ON tb1.og_seq = tb2.per_organize AND tb1.seq = tb2.seq
+		WHERE 1=1
+		</if>
+	</select>
+	
+	<!-- 통계 전체 사원수 구하기 -->
+	<select id="select_person_total" resultType="int">
+		SELECT
+			COUNT(
+				CASE
+                	WHEN tb.per_resign = 0 THEN 1
+                	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+                	ELSE 1
+                END
+			) AS total
+		FROM personnel tb WHERE 1=1
+		<if test="auth == 1"> AND tb.per_organize = #{auth_seq} </if>
+	</select>
+	
+	<!-- 통계 구하기 -->
+	<select id="select_person_rate" resultType="HashMap">
+		<!-- 고용형태별 -->
+		<if test="section == 1">
+		SELECT 
+			CASE a.seq
+		    	WHEN 1 THEN '정규직'
+		        WHEN 2 THEN '계약직'
+				WHEN 3 THEN '인턴직'
+				WHEN 4 THEN '촉탁직'
+		    END AS item,
+		     IFNULL(TRUNCATE((IFNULL(b.cnt, 0) / #{total}) * 100, 2), 0) AS value
+		FROM (SELECT seq FROM seq_1_to_365 WHERE 1=1 AND seq &lt; 5) a
+		LEFT JOIN 
+		(
+			SELECT
+				COUNT(
+					CASE
+	                	WHEN tb.per_resign = 0 THEN 1
+	                	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+	                	ELSE 1
+	                END
+				) AS cnt,
+				tb.per_type, tb.per_organize 
+			FROM personnel tb WHERE 1=1 
+			<if test="auth == 1"> AND tb.per_organize = #{auth_seq} </if>
+			GROUP BY tb.per_type
+		) b ON a.seq = b.per_type
+		WHERE 1=1
+		ORDER BY value DESC, a.seq ASC
+		</if>
+		
+		<!-- 사업단별 -->
+		<if test="section == 2">
+		SELECT 
+			REPLACE(a.og_name, '사업단', '') AS item,
+		    IFNULL(TRUNCATE((IFNULL(b.cnt, 0) / #{total}) * 100, 2), 0) AS value
+		FROM (SELECT tb.og_seq, tb.og_name, tb.og_code FROM organization tb WHERE 1=1 AND tb.og_group = 1 AND tb.og_code >= 200000000 <if test="auth == 1"> AND tb.og_seq = #{auth_seq} </if>) a
+		LEFT JOIN 
+		(
+			SELECT
+				COUNT(
+					CASE
+	                	WHEN tb.per_resign = 0 THEN 1
+	                   	WHEN tb.per_resign &lt;= DATE_FORMAT(#{start_date}, '%Y%m%d235959') THEN NULL
+	                   	ELSE 1
+	                END
+				) AS cnt,
+				tb.per_type, tb.per_organize 
+			FROM personnel tb WHERE 1=1 
+			GROUP BY tb.per_organize
+		) b ON a.og_seq = b.per_organize
+		WHERE 1=1
+		ORDER BY value DESC, a.og_code ASC
+		</if>
+	</select>
+	
+	<!-- 사번 중복 체크하기 -->
+	<select id="select_user_id" resultType="int">
+		SELECT 
+			COUNT(per_seq)
+		FROM personnel WHERE 1=1
+			AND per_id = #{per_id}
+	</select>
+	
+	<!-- 사업단 리스트 가져오기 -->
+	<select id="select_org_group" resultType="HashMap">
+		SELECT
+			a.og_seq, a.og_name, a.og_code
+		FROM organization a
+		WHERE 1=1
+		AND a.og_group = 1
+		AND a.og_code >= 200000000
+		<if test="auth == 1"> AND a.og_seq = #{auth_seq} </if>
+		ORDER BY a.og_code ASC
+	</select>
+	
+	<!-- 인력현황 헤더리스트 가져오기 -->
+	<select id="select_job_grade" resultType="HashMap">
+		SELECT
+			a.seq AS jg_seq,
+			CASE a.name
+				WHEN '임원' THEN a.name
+				ELSE LEFT(a.name, 3)
+			END AS job,
+		    CASE a.name
+		    	WHEN '임원' THEN a.name
+				ELSE RIGHT(a.name, 2)
+			END AS grade
+		FROM job_grade a
+		ORDER BY a.code ASC
+	</select>
+	
+	<!-- 직원 리스트 가져오기 엑셀 -->
+	<select id="select_member_list_excel" resultType="HashMap">		
+		SELECT
+			per_seq AS seq
+			, per_id
+			, per_name
+			, (SELECT a.og_name FROM organization a WHERE 1=1 AND a.og_seq = per_organize) AS per_organize
+			, (SELECT a.og_name FROM organization a WHERE 1=1 AND a.og_seq = per_team) AS per_team
+			, CASE 
+				WHEN at_seq IS NULL THEN
+				'정보없음'
+			ELSE (SELECT a.name FROM assign_task a WHERE 1=1 AND a.seq = at_seq) END AS at_seq
+			, CASE 
+				WHEN pos_seq IS NULL THEN
+				'정보없음'
+			ELSE (SELECT a.name FROM position a WHERE 1=1 AND a.seq = pos_seq) END AS pos_seq
+			,  CASE 
+				WHEN jg_seq IS NULL THEN
+				'정보없음'
+			ELSE (SELECT a.name FROM job_grade a WHERE 1=1 AND a.seq = jg_seq) END AS jg_seq
+			, CASE 
+				WHEN j_seq IS NULL THEN
+				'정보없음'
+			ELSE (SELECT a.name FROM job a WHERE 1=1 AND a.seq = j_seq) END AS j_seq
+		FROM personnel WHERE 1=1
+		</select>
+		
+		<!-- 직원 정보 가져오기 엑셀 -->
+	<select id="select_profile_excel" resultType="HashMap">
+		<!-- 직원 기본 정보 가져오기 -->
+		<if test="section == 1">
+		SELECT
+			a.per_seq AS seq
+			, a.per_name
+			, a.per_ename
+			, date_format(a.per_birth,'%Y-%m-%d') AS per_birth
+			, a.per_cname
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq = a.per_organize) AS per_organize
+			, a.per_area
+			, (SELECT tb.og_name FROM organization tb WHERE 1=1 AND tb.og_seq = a.per_team) AS per_team
+			, (SELECT tb.name FROM assign_task tb WHERE 1=1 AND tb.seq = a.at_seq) AS at_seq
+			, a.per_place
+			, (SELECT tb.name FROM job_grade tb WHERE 1=1 AND tb.seq = a.jg_seq) AS jg_seq
+			, a.per_id
+			, (SELECT tb.name FROM position tb WHERE 1=1 AND tb.seq = a.pos_seq) AS pos_seq
+			, a.per_email
+			, a.j_seq
+			, (SELECT tb.name FROM job tb WHERE 1=1 AND tb.seq = a.j_seq) AS j_seq
+			, CASE
+				WHEN per_type=1 THEN '정규직'
+				WHEN per_type=1 THEN '계약직'
+				WHEN per_type=1 THEN '인턴직'
+				ELSE '촉탁직'	END AS 	per_type		
+			, a.per_zip
+			, a.per_addr
+			, a.per_detail
+			, a.per_home
+			, a.per_mobile
+			, a.per_office
+			, date_format(a.per_join,'%Y-%m-%d') AS per_join
+			, date_format(a.per_promote,'%Y-%m-%d') AS per_promote
+			, date_format(a.per_resign,'%Y-%m-%d') AS per_resign
+		FROM personnel a
+		WHERE 1=1
+			AND a.per_seq = #{seq}
+		</if>
+		
+		<!-- 직원 학력사항 가져오기 엑셀  -->
+		<if test="section == 2">
+		SELECT sc_seq
+		, per_seq
+		, date_format(sc_enter,'%Y-%m-%d') AS sc_enter
+		, date_format(sc_finish,'%Y-%m-%d') AS sc_finish
+		, sc_name
+		, sc_major
+		, sc_relation
+		, CASE
+			WHEN sc_relation=1 THEN '유'
+			ELSE '무' END AS sc_relation
+		, (SELECT tb.name FROM final_education tb WHERE 1=1 AND tb.seq = fe_seq) AS fe_seq
+		, update_date 
+		FROM school_career
+		WHERE 1=1
+		 AND per_seq = #{seq}
+		</if>
+		
+		<!-- 직원 교육이력 엑셀-->
+		<if test="section == 3">
+		SELECT ed_seq
+		, per_seq
+		, date_format(ed_finish,'%Y-%m-%d') AS ed_finish
+		, date_format(ed_expire,'%Y-%m-%d') AS ed_expire
+		, ed_organ
+		, ed_process
+		, ed_edu
+		, ed_score
+		, update_date
+		 FROM education WHERE 1
+			AND per_seq = #{seq}
+		</if>
+		
+		<!-- 직원 자격면허 엑셀-->
+		<if test="section == 4">
+		SELECT l_seq
+		, per_seq
+		, date_format(l_finish,'%Y-%m-%d') AS l_finish
+		, date_format(l_expire,'%Y-%m-%d') AS l_expire
+		, l_organ
+		, l_name
+		, l_grade
+		, l_num
+		, update_date
+		FROM license WHERE 1
+			AND per_seq = #{seq}
+		</if>
+		
+		<!-- 직원 타사이력 엑셀-->
+		<if test="section == 5">
+		SELECT oc_seq
+		, per_seq
+		, date_format(oc_join,'%Y-%m-%d') AS oc_join
+		, date_format(oc_resign,'%Y-%m-%d') AS oc_resign
+		, oc_name
+		, oc_note
+		, update_date
+		 FROM other_career WHERE 1=1
+		AND per_seq = #{seq}
+		
+		</if>
+		
+		<!-- 직원 자사이력 엑셀-->
+		<if test="section == 6">
+		SELECT c_seq
+		, per_seq
+		, date_format(c_appoint,'%Y-%m-%d') AS c_appoint
+		, date_format(c_finish,'%Y-%m-%d') AS c_finish
+		, c_place
+		, c_team
+		, c_part
+		, c_position
+		, update_date
+		FROM career WHERE 1=1
+			AND per_seq = #{seq}
+		</if>
+		
+		<!-- 직원 프로젝트 엑셀-->
+		<if test="section == 7">
+		SELECT proj_seq
+		, per_seq
+		, date_format(proj_start,'%Y-%m-%d') AS proj_start
+		, date_format(proj_end,'%Y-%m-%d') AS proj_end
+		, proj_place
+		, proj_name
+		, proj_part
+		, proj_position
+		, update_date
+		FROM project WHERE 1
+			AND per_seq = #{seq}
+		</if>
+		
+		<!-- 직원 발주처 엑셀-->
+		<if test="section == 8">
+		SELECT po_seq
+		, per_seq
+		, date_format(po_start,'%Y-%m-%d') AS po_start
+		, date_format(po_end,'%Y-%m-%d') AS po_end
+		, po_place
+		, po_manage
+		, po_part
+		, po_system
+		, update_date 
+		FROM place_order
+		WHERE 1
+			AND per_seq = #{seq}
+		</if>
+		
+		<!-- 직원 협회경력 엑셀-->
+		<if test="section == 9">
+		SELECT soc_seq
+		, per_seq
+		, date_format(soc_start,'%Y-%m-%d') AS soc_start
+		, date_format(soc_end,'%Y-%m-%d') AS soc_end
+		, soc_place
+		, soc_manage
+		, soc_part
+		, soc_system
+		, update_date
+		FROM society 
+		WHERE 1
+			AND per_seq = #{seq}
+		</if>
+		
+		<!-- 직원 기타정보 엑셀-->
+		<if test="section == 10">
+		SELECT
+			a.per_seq AS seq
+			, a.car_model
+			, a.car_number
+			, a.car_name
+			, CASE
+				WHEN per_pwd IS NULL THEN ''
+				ELSE '' END AS per_pwd
+			, CASE
+				WHEN per_status=1 THEN '재직'
+				ELSE '퇴직' END AS per_status
+			, (SELECT tb.ag_name FROM auth_group tb WHERE 1=1 AND tb.ag_seq = a.ag_seq) AS ag_seq
+		FROM personnel a
+		WHERE 1=1
+			AND per_seq = #{seq}		
+		</if>
+	</select>
+	
+	<select id="select_level" resultType="HashMap">
+		SELECT
+			*
+		FROM level_career
+		WHERE 1 = 1
+		AND per_seq = #{seq}
+	</select>
+</mapper>
