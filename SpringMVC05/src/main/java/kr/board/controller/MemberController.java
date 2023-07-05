@@ -2,11 +2,14 @@ package kr.board.controller;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,6 +19,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import com.oreilly.servlet.MultipartRequest;
 import com.oreilly.servlet.multipart.DefaultFileRenamePolicy;
 
+import kr.board.entity.AuthVO;
 import kr.board.entity.Member;
 import kr.board.mapper.MemberMapper;
 
@@ -24,6 +28,9 @@ public class MemberController {
     
 	@Autowired
 	MemberMapper memberMapper;
+	
+	@Autowired
+	PasswordEncoder pwEncoder;
 	
 	@RequestMapping("/memJoin.do")
 	public String memJoin() {
@@ -39,6 +46,7 @@ public class MemberController {
 		return 1; //사용가능한 아이디
 	}
 	// 회원가입 처리
+	// Member m의 m은 암호화처리가 안되어있는 파라미터임
 	@RequestMapping("/memRegister.do")
 	public String memRegister(Member m, String memPassword1, String memPassword2,
 			                  RedirectAttributes rttr, HttpSession session) {
@@ -46,7 +54,7 @@ public class MemberController {
 		   memPassword1==null || memPassword1.equals("") ||
 		   memPassword2==null || memPassword2.equals("") ||
 		   m.getMemName()==null || m.getMemName().equals("") ||	
-		   m.getMemAge()==0 ||
+		   m.getMemAge()==0 || m.getAuthList().size() ==0 || //회원가입화면에서 check안할시 값이 누락되어 회원가입 안됨
 		   m.getMemGender()==null || m.getMemGender().equals("") ||
 		   m.getMemEmail()==null || m.getMemEmail().equals("")) {
 		   // 누락메세지를 가지고 가기? =>객체바인딩(Model, HttpServletRequest, HttpSession)
@@ -61,8 +69,26 @@ public class MemberController {
 		}		
 		m.setMemProfile(""); // 사진이미는 없다는 의미 ""
 		// 회원을 테이블에 저장하기
+		// 추가 : 비밀번호를 암호화 하기(스프링 제공 API를 사용해야한다.)
+		// 패스워드를 암호화 시켜서 pwencoder에 받아놓음
+		String encypyPW=pwEncoder.encode(m.getMemPassword());
+		m.setMemPassword(encypyPW);
+		//REGISTER() 수정
 		int result=memberMapper.register(m);
 		if(result==1) { // 회원가입 성공 메세지
+			// 추가: 권한테이블에 회원의 권한을 저장하기
+			List<AuthVO> list=m.getAuthList();
+			for( AuthVO authVO : list) {
+				if (authVO.getAuth()!=null) {
+					//saveVO 객체 생성
+					AuthVO saveVO = new AuthVO();
+					saveVO.setMemID(m.getMemID()); //회원 ID
+					saveVO.setAuth(authVO.getAuth()); //회원의 권한
+					memberMapper.authInsert(saveVO);
+				}
+			}
+			
+			
 		   rttr.addFlashAttribute("msgType", "성공 메세지");
 		   rttr.addFlashAttribute("msg", "회원가입에 성공했습니다.");
 		   // 회원가입이 성공하면=>로그인처리하기
