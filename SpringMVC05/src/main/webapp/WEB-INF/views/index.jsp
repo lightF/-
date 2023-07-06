@@ -25,7 +25,7 @@
 <jsp:include page="common/header.jsp"/>      
   <div class="panel panel-default">
     <div>
-       <img src="${contextPath}/resources/images/s3.jpg" style="width: 100%; height: 400px;"/>
+       <img src="${contextPath}/resources/images/acs.jpg" style="width: 100%; height: 400px;"/>
     </div>
     <div class="panel-body">
 		<ul class="nav nav-tabs">
@@ -48,7 +48,7 @@
 		  </div>
 		</div>		
     </div>
-    <div class="panel-footer">스프1탄_인프런(박매일)</div>
+    <div class="panel-footer">최현제</div>
   </div>
 </div>
  

@@ -115,6 +115,7 @@
 	             	<input type="checkbox" name="authList[0].auth" value="ROLE_USER"> ROLE_USER<!-- MEMBER의 AUTHVO의 NO, authList[0],authList[1],authList[2]를 가져온다. -->
 	             	<input type="checkbox" name="authList[1].auth" value="ROLE_MANAGER"> ROLE_MANAGER
 	             	<input type="checkbox" name="authList[2].auth" value="ROLE_ADMIN"> ROLE_ADMIN
+	             	<!-- memRegister.do에서 넘어온 파라미터를 받는다 (membercontroller에서 받음) member-> authList-->
            </tr>  
                
            <tr>
@@ -165,7 +166,6 @@
 	  </div>
 	</div>    
 	<!-- 실패메세지 출력 -->
-	
     <div class="panel-footer">최현제</div>
   </div>
 </div>

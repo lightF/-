@@ -5,7 +5,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Bootstrap Example</title>
+  <title>게시판 프로젝ㅌ트</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
@@ -15,7 +15,7 @@
 <body>
  <jsp:include page="../common/header.jsp"/>
 <div class="container">
-  <h2>SPRING MVC 03</h2>
+  <h2>SPRING MVC 05</h2>
   <div class="panel panel-default">
     <div class="panel-heading">Heading</div>
     <div class="panel-body">Content</div>
