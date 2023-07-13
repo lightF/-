@@ -22,17 +22,19 @@
     <div class="panel-heading">BOARD</div>
     <div class="panel-body">Panel Content
     	<form action="${cpath}/board/register" method="post">
+    	<!-- input으로 type memID로 값을 넘긴다. -->
+    	 <input type="hidden" name="memID" value="${mvo.memID}" /> 
     		<div class="form-group">
     			<label>제목</label>
     			<input type="text" name="title" class="form-group"/>
     		</div>
     		<div class="form-group">
     			<label>내용</label>
-    			<textarea rows="10" class="form-control" name="content"></textarea>
+    			<textarea rows="10" name="content" class="form-control" ></textarea>
     		</div>
     		<div class="form-group">
-    			<label>작성자</label>
-    			<input type="text" name="writer" class="form-group"/>
+    			<label>작성자</label> <!-- readonly로 작성자 수정을 못하도록 readonly로 해줘야한다. -->
+    			<input type="text" name="writer" readonly="readonly" class="form-group" value="${mvo.memName}"/>
     		</div>
     		<button type="submit" class="btn btn-default btn-sm">등록</button>
     		<button type="reset" class="btn btn-default btn-sm">취소</button>

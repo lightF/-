@@ -8,8 +8,8 @@
 	<insert id="insert" parameterType="kr.bit.entity.Board">
 		insert into 
 		tblBoard(idx,memID,title,content,writer,boardGroup,boardSequence,boardLevel,boardAvailable) 
-			select IFNULL(MAX(idx)+1, 1),#{memID},#{title},#{content},#{writer},
-	    			IFNULL (MAX(boardGroup)+1, 0),0,0,1 
+			select IFNULL(max(idx)+1, 1),#{memID},#{title},#{content},#{writer},
+	    		   IFNULL (max(boardGroup)+1, 0),0,0,1 
 			from tblBoard
 		<!-- idx와 boardGroup은 최대값을 구해야하므로 select를 해야한다. -->
 	</insert>
@@ -26,5 +26,13 @@
 		values(#{idx},#{memID},#{title},#{content},#{writer},#{boardGroup},0,0,1)	
 		<!-- idx와 boardGroup은 최대값을 구해야하므로 select를 해야한다. -->
 	</insert>
+	
+	<select id="read" resultType="kr.bit.entity.Board">
+		select * from tblBoard where idx=#{idx}
+	</select>
+	
+	<select id="login" resultType="kr.bit.entity.Member" parameterType="kr.bit.entity.Member">
+		select * from tblMember where memID=#{memID} and memPwd=#{memPwd}
+	</select>
 	
 </mapper>
