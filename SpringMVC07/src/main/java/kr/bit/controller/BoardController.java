@@ -39,6 +39,7 @@ public class BoardController {
 		System.out.println(vo);
 		rttr.addFlashAttribute("result",vo.getIdx()); //${result}
 		return "redirect:/board/list";
+		//등록이 되면 다시 리스트로 돌아간다.
 	}
 	
 	@GetMapping("/get")
@@ -46,8 +47,34 @@ public class BoardController {
 		Board vo = boardService.get(idx);
 		model.addAttribute("vo",vo);
 		return "board/get";	//WEB-INF/views/board/get/jsp ->으로 연결된다
-		
+	}
+	@GetMapping("/modify")
+	public String modify(@RequestParam("idx")int idx,Model model) {	//객체 바인딩을 해야하므로 model 선언
+		Board vo = boardService.get(idx);
+		model.addAttribute("vo",vo);
+		return "board/modify";	//WEB-INF/views/board/get/jsp ->으로 연결된다
+	}
+	@PostMapping("/modify")
+	public String modify(Board vo) {
+		boardService.modify(vo); //수정
+		return "redirect:/board/list";
+	}
+	@GetMapping("/remove")
+	public String remove(int idx) {
+		boardService.remove(idx); //삭제처리
+		return "redirect:/board/list";
+	}
+	@GetMapping("/reply")
+	public String reply(int idx, Model model) {
+		Board vo=boardService.get(idx);
+		model.addAttribute("vo",vo);
+		return "board/reply"; // WEB/INF/views/board/reply.jsp
+	}
+	@PostMapping("/reply")
+	public String reply(Board vo) {
+		//댓글의 필요한 처리./..
+		boardService.replyProcess(vo);
+		return "redirect:/board/list";
 		
 	}
-	
 }

@@ -12,5 +12,9 @@ public interface BoardMapper {
 	public void insertSelectKey(Board vo);
 	public Member login(Member vo); //SQL
 	public Board read(int idx); 	//게시판 번호 읽기(read)
+	public void update(Board vo);
+	public void delete(int idx);
+	public void replySeqUpdate(Board parent); //부모글 ->parent로 받는다
+	public void replyInsert(Board vo);
 }
 	
