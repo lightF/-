@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="kr.bit.mapper.BoardMapper">
+
+	<select id="getList" resultType="kr.bit.entity.Board" parameterType="kr.bit.entity.Criteria">
+		select * from tblboard order by boardGroup desc, boardSequence asc
+		limit #{pageStart},#{perPageNum}
+	</select>
+	
+	<insert id="insert" parameterType="kr.bit.entity.Board">
+		insert into 
+		tblBoard(idx,memID,title,content,writer,boardGroup,boardSequence,boardLevel,boardAvailable) 
+			select IFNULL(max(idx)+1, 1),#{memID},#{title},#{content},#{writer},
+	    		   IFNULL (max(boardGroup)+1, 0),0,0,1 
+			from tblBoard
+		<!-- idx와 boardGroup은 최대값을 구해야하므로 select를 해야한다. -->
+	</insert>
+	
+	<insert id="insertSelectKey" parameterType="kr.bit.entity.Board">
+	<!-- insert를 하기전에 select를해서 키값을 구해옵니다. selectkey 값을 구해온다음 parameter에 값을 집어넣는다.-->
+		<selectKey keyProperty="idx,boardGroup" resultType="kr.bit.entity.Board" order="BEFORE">
+			select IFNULL(max(idx)+1, 1) as idx, 
+				   IFNULL(max(boardGroup)+1, 1) as boardGroup
+		 	from tblBoard
+		</selectKey>
+		insert into 
+		tblBoard(idx,memID,title,content,writer,boardGroup,boardSequence,boardLevel,boardAvailable) 
+		values(#{idx},#{memID},#{title},#{content},#{writer},#{boardGroup},0,0,1)	
+		<!-- idx와 boardGroup은 최대값을 구해야하므로 select를 해야한다. -->
+	</insert>
+	
+	<insert id="replyInsert" parameterType="kr.bit.entity.Board">
+		<selectKey keyProperty="idx" resultType="kr.bit.entity.Board" order="BEFORE">
+			select IFNULL(max(idx)+1, 1) as idx from tblBoard
+		</selectKey>
+		insert into 
+		tblBoard(idx,memID,title,content,writer,boardGroup,boardSequence,boardLevel,boardAvailable) 
+		values(#{idx},#{memID},#{title},#{content},#{writer},#{boardGroup},#{boardSequence},#{boardLevel},1)
+	</insert>
+	
+	<select id="read" resultType="kr.bit.entity.Board">
+		select * from tblBoard where idx=#{idx}
+	</select>
+	
+	<update id="update" parameterType="kr.bit.entity.Board">
+		update tblBoard set title=#{title}, content=#{content} 
+		where idx=#{idx}
+	</update>
+	
+	<delete id="delete">
+		update tblBoard set boardAvailable=0 where idx=#{idx}
+	</delete>
+	
+	<select id="login" resultType="kr.bit.entity.Member" parameterType="kr.bit.entity.Member">
+		select * from tblMember where memID=#{memID} and memPwd=#{memPwd}
+	</select>
+	
+	<update id="replySeqUpdate" parameterType="kr.bit.entity.Board">
+		update tblBoard set boardSequence=boardSequence+1
+		where boardGroup=#{boardGroup} and boardSequence > #{boardSequence}
+	</update>
+	
+	<select id="totalCount" resultType="int">
+		select count(*) from tblBoard
+	</select>
+	
+</mapper>
