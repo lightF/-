@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<title>Insert title here</title>
+</head>
+
+<body>
+<input type="button" value="aaa" onclick="z.aaa()"><br>
+<input type="button" value="bbb" onclick="z.bbb()">
+</body>
+<script>
+	class abc {
+		aaa() {
+			console.log("aaa")
+		} bbb() {
+			console.log("bbb")
+		}
+	}
+	let z = new abc();
+	z.aaa();
+	z.bbb();
+</script>
+
+</html>

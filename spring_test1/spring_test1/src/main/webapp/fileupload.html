@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<title>스프링파ㅣ일업로드</title>
+</head>
+
+<body>
+	<form id="f" method="post" action="./fileuploadok.do" enctype="multipart/form-data">
+		파일첨부 : <input type="file" name="mfile"><br>
+		<input type="button" value="업로드" id="btn">
+
+	</form>
+</body>
+<script>
+	/*document.querySelector(id 또는 class id는 # class는 .)
+	addEventListener(event핸들링 click,change,submit,load,keydown,keyup,keypress,mouseover,mouseenter,mouseup 등등............)
+	*/
+	document.querySelector("#btn").addEventListener("click", function () {
+		if (f.mfile.value == "") {
+			alert("error")
+			return false;
+		} else { }
+		f.submit();
+	});
+
+</script>
+
+</html>

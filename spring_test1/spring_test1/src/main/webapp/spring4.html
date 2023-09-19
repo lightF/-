@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>이메일 발송 시스템</title>
+</head>
+<body>
+<p>이메일 발송 시스템</p>
+<form id="f" method="post" action="./spring4ok.do">
+고객명: <input type="text" name="mname" required><br>
+받은메일: <input type="email" name="mail" required><br>
+제목: <input type="text" name="mtitle" required><br>
+내용: <textarea name="mcontent" required></textarea><br>
+<input type="hidden" name="mdate" >
+<input type="submit" value="전송">
+</form>
+</body>
+<script>
+	f.mdate.value = new Date().toISOString().slice(0,-1);
+	console.log(f.mdate.value);
+	
+</script>
+</html>

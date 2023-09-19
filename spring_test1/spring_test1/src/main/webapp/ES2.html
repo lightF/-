@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Insert title here</title>
+</head>
+<body>
+
+</body>
+<script>
+	class box{
+		aaa(data){
+			console.log(data)
+			this.a = data;
+			this.bbb()
+		}
+		bbb(){
+			console.log(this.a)
+		}
+	}
+	let k = new box();
+	k.aaa("gre");
+	//변수형태의 클래스
+	const test1 = class box{
+		aaa_box(data){
+			console.log(data);
+		}	
+	}
+	console.log(test1.name)
+	new test1().aaa_box("call");
+	//class 이름이 업는 변수형태
+	const bbb = class{
+		bbb_box(data){
+			this.a = "test1";
+		}
+		ccc_box(){
+			this.b = this.a + "tt"
+			return this.b
+		}
+	}
+	new bbb().bbb_box("noname")
+	var result = new bbb().bbb_box();
+	console.log(result);
+</script>
+</html>

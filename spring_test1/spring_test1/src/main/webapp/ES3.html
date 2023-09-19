@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Insert title here</title>
+</head>
+<body>
+
+</body>
+<script>
+	class box1{
+		abc(){
+			this.msg = "message";
+			return this.msg;
+		}
+	}
+	//상속클래스 자바와 다른점은 상속하고자 하는 클래스는 먼저 선언되어야 한다
+	class box2 extends box1{
+		bbb(){
+			this.data = this.abc();
+			console.log(this.data);
+		}
+	}
+	const b2 = new box2();
+	//b2.bbb();
+	class cals{
+		plus(number,number2){
+		this.sum = 0;
+		let a =0;
+		for(a=number;a<=number2;a++){
+			this.sum+=a;
+		}	
+			return this.sum;
+		}
+	}
+	
+	class cal2 extends cals{
+		
+	}
+	let test = new cal2();
+	
+	class bbox{
+		constructor(x){
+			console.log(x)
+		}
+	}
+	let aaa = new bbox("test");
+	
+</script>
+</html>
